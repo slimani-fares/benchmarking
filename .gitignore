@@ -1,0 +1,19 @@
+# ASV outputs
+benchmarks/data/
+benchmarks/.asv/
+benchmarks/__pycache__/
+benchmarks/**/__pycache__/
+
+# Python
+*.pyc
+*.pyo
+__pycache__/
+.venv/
+venv/
+*.egg-info/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store

@@ -1,0 +1,13 @@
+{
+    "version": 1,
+    "project": "declearn",
+    "project_url": "https://gitlab.inria.fr/magnet/declearn/declearn2",
+    "repo": "../../declearn",
+    "branches": ["main"],
+    "environment_type": "existing",
+    "matrix": {},
+    "benchmark_dir": ".",
+    "env_dir": ".asv/env",
+    "results_dir": ".asv/results",
+    "html_dir": ".asv/html"
+}
