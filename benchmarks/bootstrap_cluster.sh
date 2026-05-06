@@ -37,36 +37,29 @@ PY_VERSION="${PY_VERSION:-3.11}"
 DECLEARN_VERSION="${DECLEARN_VERSION:-2.8.0}"
 TORCH_INDEX="${TORCH_INDEX:-https://download.pytorch.org/whl/cu121}"
 
-# 1. Locate (or install via conda) a Python 3.11+ interpreter.
-locate_python311() {
-    if [ -n "${PYTHON_BIN:-}" ]; then
-        echo "$PYTHON_BIN"
-        return 0
-    fi
-    for cand in python3.13 python3.12 python3.11 python3; do
-        if path=$(command -v "$cand" 2>/dev/null); then
-            ver=$("$path" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
-            major=${ver%%.*}
-            minor=${ver#*.}
-            if [ "$major" -gt 3 ] || { [ "$major" -eq 3 ] && [ "$minor" -ge 11 ]; }; then
-                echo "$path"
-                return 0
-            fi
-        fi
-    done
-    return 1
-}
+# 1. Locate (or install via conda) a Python interpreter at exactly
+#    $PY_VERSION (default 3.11). We pin the major.minor version
+#    because PyTorch CUDA wheels lag the latest Python release; even
+#    if the system has python3.13, `pip install torch` will fail
+#    until upstream ships 3.13 wheels. Pinning to 3.11 sidesteps
+#    that and keeps benchmark results comparable across machines.
+need_install=1
+if [ -n "${PYTHON_BIN:-}" ]; then
+    need_install=0
+elif path=$(command -v "python$PY_VERSION" 2>/dev/null); then
+    PYTHON_BIN=$path
+    need_install=0
+fi
 
-PYTHON_BIN=$(locate_python311 || true)
-if [ -z "$PYTHON_BIN" ]; then
+if [ "$need_install" = "1" ]; then
     if ! command -v conda >/dev/null 2>&1; then
-        echo "ERROR: no Python 3.11+ on PATH and conda is unavailable." >&2
-        echo "       declearn $DECLEARN_VERSION requires Python >= 3.11." >&2
-        echo "       Try 'module load python/3.11' or 'module load conda'" >&2
-        echo "       and re-run, or set PYTHON_BIN=/path/to/python3.11." >&2
+        echo "ERROR: no python$PY_VERSION on PATH and conda is unavailable." >&2
+        echo "       declearn $DECLEARN_VERSION requires Python $PY_VERSION." >&2
+        echo "       Try 'module load python/$PY_VERSION' or 'module load conda'" >&2
+        echo "       and re-run, or set PYTHON_BIN=/path/to/python$PY_VERSION." >&2
         exit 1
     fi
-    echo "[1/5] no system python3.11+ found — bootstrapping via conda"
+    echo "[1/5] no system python$PY_VERSION found — bootstrapping via conda"
     echo "      ($(command -v conda))"
     # shellcheck disable=SC1091
     source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -79,6 +72,16 @@ if [ -z "$PYTHON_BIN" ]; then
     PYTHON_BIN=$(conda run -n "$CONDA_BOOTSTRAP_ENV" --no-capture-output \
                     python -c 'import sys; print(sys.executable)')
 fi
+
+# Verify the chosen interpreter matches PY_VERSION (catches a mismatch
+# from a stale venv pointing at the wrong python).
+actual_ver=$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+if [ "$actual_ver" != "$PY_VERSION" ]; then
+    echo "ERROR: PYTHON_BIN=$PYTHON_BIN reports $actual_ver, expected $PY_VERSION." >&2
+    echo "       Either set PYTHON_BIN to a python$PY_VERSION binary or" >&2
+    echo "       unset it and let the script find one via conda." >&2
+    exit 1
+fi
 echo "      python → $PYTHON_BIN ($($PYTHON_BIN --version))"
 
 echo "=== bootstrap_cluster.sh ==="
@@ -88,8 +91,21 @@ echo "    torch:    cu121 wheels (compat with 12.6+ drivers)"
 echo
 
 # 2. Create or reuse the venv (always a regular venv, never a conda env).
+#    If a venv already exists but was seeded with the wrong Python
+#    version, recreate it — pip would later choke on missing torch
+#    wheels for that version.
+recreate_venv=0
+if [ -d "$BENCH_VENV" ]; then
+    venv_ver=$("$BENCH_VENV/bin/python" -c \
+        'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "")
+    if [ "$venv_ver" != "$PY_VERSION" ]; then
+        echo "[2/5] venv at $BENCH_VENV has python $venv_ver — recreating with $PY_VERSION"
+        rm -rf "$BENCH_VENV"
+        recreate_venv=1
+    fi
+fi
 if [ ! -d "$BENCH_VENV" ]; then
-    echo "[2/5] creating venv at $BENCH_VENV"
+    [ "$recreate_venv" = "0" ] && echo "[2/5] creating venv at $BENCH_VENV"
     "$PYTHON_BIN" -m venv "$BENCH_VENV"
 else
     echo "[2/5] venv exists at $BENCH_VENV — reusing"
