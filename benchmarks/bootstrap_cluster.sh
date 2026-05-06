@@ -2,17 +2,26 @@
 # Bootstrap a benchmark-ready Python environment on a fresh cluster
 # node (e.g. Magnet 8). Idempotent — safe to re-run.
 #
+# The benchmark env is always a regular venv at $BENCH_VENV. If no
+# system Python 3.11+ is available, the script uses conda *only* to
+# install a python3.11 interpreter (in a side conda env named
+# $CONDA_BOOTSTRAP_ENV), then uses that interpreter to create the
+# real venv. ASV itself never touches conda.
+#
 # What it does:
-#   1. Creates (or reuses) a venv at $BENCH_VENV
-#   2. Installs PyTorch with CUDA 12.1 wheels (forward-compatible with
-#      driver 12.6 / 12.8)
-#   3. Installs declearn from PyPI plus the deps the suite needs
+#   1. Locates a Python 3.11+ interpreter, falling back to
+#      "conda create -n declearn-bench-py311 python=3.11" if needed
+#   2. Creates (or reuses) the venv at $BENCH_VENV
+#   3. Installs PyTorch with CUDA 12.1 wheels (forward-compatible
+#      with driver 12.6 / 12.8)
+#   4. Installs declearn from PyPI plus the deps the suite needs
 #      (tensorflow, scikit-learn, opacus, cryptography, asv)
-#   4. Verifies torch + (optional) tensorflow can see the GPU
+#   5. Verifies torch + (optional) tensorflow can see the GPU
 #
 # Usage:
-#   ./bootstrap_cluster.sh                  # uses default venv path
+#   ./bootstrap_cluster.sh
 #   BENCH_VENV=/some/path ./bootstrap_cluster.sh
+#   PYTHON_BIN=/path/to/python3.11 ./bootstrap_cluster.sh
 #
 # After it succeeds, run the benchmark suite with:
 #   source "$BENCH_VENV/bin/activate"
@@ -23,8 +32,54 @@
 set -euo pipefail
 
 BENCH_VENV="${BENCH_VENV:-$HOME/.venvs/declearn-bench-gpu}"
+CONDA_BOOTSTRAP_ENV="${CONDA_BOOTSTRAP_ENV:-declearn-bench-py311}"
+PY_VERSION="${PY_VERSION:-3.11}"
 DECLEARN_VERSION="${DECLEARN_VERSION:-2.8.0}"
 TORCH_INDEX="${TORCH_INDEX:-https://download.pytorch.org/whl/cu121}"
+
+# 1. Locate (or install via conda) a Python 3.11+ interpreter.
+locate_python311() {
+    if [ -n "${PYTHON_BIN:-}" ]; then
+        echo "$PYTHON_BIN"
+        return 0
+    fi
+    for cand in python3.13 python3.12 python3.11 python3; do
+        if path=$(command -v "$cand" 2>/dev/null); then
+            ver=$("$path" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+            major=${ver%%.*}
+            minor=${ver#*.}
+            if [ "$major" -gt 3 ] || { [ "$major" -eq 3 ] && [ "$minor" -ge 11 ]; }; then
+                echo "$path"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+PYTHON_BIN=$(locate_python311 || true)
+if [ -z "$PYTHON_BIN" ]; then
+    if ! command -v conda >/dev/null 2>&1; then
+        echo "ERROR: no Python 3.11+ on PATH and conda is unavailable." >&2
+        echo "       declearn $DECLEARN_VERSION requires Python >= 3.11." >&2
+        echo "       Try 'module load python/3.11' or 'module load conda'" >&2
+        echo "       and re-run, or set PYTHON_BIN=/path/to/python3.11." >&2
+        exit 1
+    fi
+    echo "[1/5] no system python3.11+ found — bootstrapping via conda"
+    echo "      ($(command -v conda))"
+    # shellcheck disable=SC1091
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_BOOTSTRAP_ENV"; then
+        echo "      creating conda env $CONDA_BOOTSTRAP_ENV (python=$PY_VERSION)"
+        conda create -y -n "$CONDA_BOOTSTRAP_ENV" "python=$PY_VERSION" pip >/dev/null
+    else
+        echo "      reusing existing conda env $CONDA_BOOTSTRAP_ENV"
+    fi
+    PYTHON_BIN=$(conda run -n "$CONDA_BOOTSTRAP_ENV" --no-capture-output \
+                    python -c 'import sys; print(sys.executable)')
+fi
+echo "      python → $PYTHON_BIN ($($PYTHON_BIN --version))"
 
 echo "=== bootstrap_cluster.sh ==="
 echo "    venv:     $BENCH_VENV"
@@ -32,15 +87,7 @@ echo "    declearn: $DECLEARN_VERSION"
 echo "    torch:    cu121 wheels (compat with 12.6+ drivers)"
 echo
 
-# 1. Locate a working python3.
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "ERROR: python3 is not on PATH on this node." >&2
-    exit 1
-fi
-PYTHON_BIN=$(command -v python3)
-echo "[1/5] python3 → $PYTHON_BIN ($($PYTHON_BIN --version))"
-
-# 2. Create or reuse the venv.
+# 2. Create or reuse the venv (always a regular venv, never a conda env).
 if [ ! -d "$BENCH_VENV" ]; then
     echo "[2/5] creating venv at $BENCH_VENV"
     "$PYTHON_BIN" -m venv "$BENCH_VENV"
