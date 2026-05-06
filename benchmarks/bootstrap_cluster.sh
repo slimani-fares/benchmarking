@@ -124,7 +124,7 @@ pip install --quiet --upgrade pip
 #    from the CUDA-matched index so the wheel matches the driver.
 echo "[3/5] installing declearn==$DECLEARN_VERSION + deps"
 pip install --quiet \
-    "declearn[torch,tensorflow,haiku]==$DECLEARN_VERSION" \
+    "declearn[torch,tensorflow,haiku,websockets]==$DECLEARN_VERSION" \
     asv \
     opacus \
     cryptography \
