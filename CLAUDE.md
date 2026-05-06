@@ -116,9 +116,12 @@ under `~/miniconda3` if it wasn't there). After that, Claude Code
 itself is two commands:
 
 ```bash
-# 1. Install Node.js into the conda base env (or any env you prefer).
-#    Use conda-forge to bypass the Anaconda default-channel ToS gate.
-conda install -y -c conda-forge --override-channels nodejs
+# 1. Install Node.js >=20 into the conda base env. The version pin
+#    matters: Claude Code's postinstall script uses optional-chaining
+#    syntax (`?.`) that breaks on Node 12, which is what an unpinned
+#    `conda install nodejs` sometimes gives you on conda-forge.
+conda install -y -c conda-forge --override-channels 'nodejs>=20'
+node --version       # sanity check: should be v20.x or higher
 
 # 2. Install Claude Code globally via the conda env's npm.
 npm install -g @anthropic-ai/claude-code
