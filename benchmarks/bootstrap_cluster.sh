@@ -125,6 +125,7 @@ pip install --quiet --upgrade pip
 echo "[3/5] installing declearn==$DECLEARN_VERSION + deps"
 pip install --quiet \
     "declearn[torch,tensorflow,haiku,websockets]==$DECLEARN_VERSION" \
+    "websockets<14.0" \
     asv \
     opacus \
     cryptography \
