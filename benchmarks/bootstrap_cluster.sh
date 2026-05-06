@@ -64,8 +64,12 @@ if [ "$need_install" = "1" ]; then
     # shellcheck disable=SC1091
     source "$(conda info --base)/etc/profile.d/conda.sh"
     if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_BOOTSTRAP_ENV"; then
-        echo "      creating conda env $CONDA_BOOTSTRAP_ENV (python=$PY_VERSION)"
-        conda create -y -n "$CONDA_BOOTSTRAP_ENV" "python=$PY_VERSION" pip >/dev/null
+        echo "      creating conda env $CONDA_BOOTSTRAP_ENV (python=$PY_VERSION, channel: conda-forge)"
+        # Use conda-forge to dodge the Anaconda default-channel ToS
+        # gate that newer Miniconda installs prompt for.
+        conda create -y -n "$CONDA_BOOTSTRAP_ENV" \
+            -c conda-forge --override-channels \
+            "python=$PY_VERSION" pip >/dev/null
     else
         echo "      reusing existing conda env $CONDA_BOOTSTRAP_ENV"
     fi
