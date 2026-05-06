@@ -118,23 +118,27 @@ fi
 source "$BENCH_VENV/bin/activate"
 pip install --quiet --upgrade pip
 
-# 3. Install torch with CUDA wheels first (so deps don't pull CPU torch).
-if ! python -c "import torch" >/dev/null 2>&1; then
-    echo "[3/5] installing torch (cu121)"
-    pip install --quiet --index-url "$TORCH_INDEX" torch
-else
-    echo "[3/5] torch already installed — skipping"
-fi
-
-# 4. Install declearn + the rest of the benchmark deps.
-#    tensorflow is large; install only if not present.
-echo "[4/5] installing declearn==$DECLEARN_VERSION + deps"
+# 3. Install declearn + the rest of the benchmark deps.
+#    Note: declearn[torch] pulls torch from default PyPI as a normal
+#    dependency. We let it do that, then reinstall torch in step 4
+#    from the CUDA-matched index so the wheel matches the driver.
+echo "[3/5] installing declearn==$DECLEARN_VERSION + deps"
 pip install --quiet \
     "declearn[torch,tensorflow,haiku]==$DECLEARN_VERSION" \
     asv \
     opacus \
     cryptography \
     gmpy2
+
+# 4. Reinstall torch from the CUDA-matched index, overriding the
+#    PyPI build pulled in by declearn[torch]. PyPI ships builds
+#    bundling the latest CUDA runtime (currently 13.x), which is
+#    too new for older drivers (e.g. driver 12.8). Pinning to the
+#    cu121 index gives us a runtime that's forward-compatible with
+#    12.x drivers.
+echo "[4/5] reinstalling torch from $TORCH_INDEX (force CUDA-matched build)"
+pip install --quiet --force-reinstall --no-deps \
+    --index-url "$TORCH_INDEX" torch
 
 # 5. Verify GPU visibility.
 echo "[5/5] verifying GPU access"
