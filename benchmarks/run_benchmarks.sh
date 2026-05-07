@@ -46,6 +46,11 @@ export DECLEARN_BENCH_FORCE_GPU="${DECLEARN_BENCH_FORCE_GPU:-1}"
 
 for VERSION in "${VERSIONS[@]}"; do
     echo "=== Benchmarking declearn ${VERSION} ==="
+    # `|| true`: asv's forkserver child sometimes crashes with a
+    # cosmetic KeyboardInterrupt during shutdown cleanup on Python
+    # 3.11+, AFTER results have been written to disk. asv inherits
+    # that non-zero exit code; without `|| true` the loop's `set -e`
+    # would abort before the next version runs.
     (
         # shellcheck disable=SC1091
         source "$VENV/bin/activate"
@@ -56,7 +61,7 @@ for VERSION in "${VERSIONS[@]}"; do
             --set-commit-hash="$REAL_SHA" \
             --show-stderr \
             "${ASV_QUICK_FLAG[@]}"
-    )
+    ) || echo "WARN: asv run for ${VERSION} exited non-zero — results on disk may still be valid; continuing."
 done
 
 asv publish
