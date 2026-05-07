@@ -141,16 +141,22 @@ echo "[4/5] reinstalling torch from $TORCH_INDEX (force CUDA-matched build)"
 pip install --quiet --force-reinstall --no-deps \
     --index-url "$TORCH_INDEX" torch
 
-# 4b. Repin cuDNN to the cu12 build torch 2.5.1+cu121 expects.
+# 4b. Repin cuDNN to a cu12 build that satisfies BOTH torch and TF.
 #     declearn[tensorflow,haiku] in step 3 transitively installs
 #     nvidia-cudnn-cu13 (cuDNN 9.19.x), which writes into the same
 #     `site-packages/nvidia/cudnn/lib/` namespace and overwrites
-#     the cu12 cuDNN 9.1.0 torch was linked against. Symptom:
-#     `RuntimeError: cuDNN error: CUDNN_STATUS_NOT_INITIALIZED`
-#     on the first conv. Re-install cu12 cuDNN last so the on-disk
-#     `libcudnn.so.9` is the one torch expects.
-echo "[4b/5] repinning cuDNN to nvidia-cudnn-cu12==9.1.0.70 (torch 2.5.1+cu121 ABI)"
-pip install --quiet --force-reinstall --no-deps "nvidia-cudnn-cu12==9.1.0.70"
+#     whatever cu12 cuDNN was there. Without this step the symptom
+#     is `CUDNN_STATUS_NOT_INITIALIZED` on the first torch conv.
+#     Pin choice: 9.3.0.75. torch 2.5.1+cu121 was built against
+#     9.1.0 but cuDNN 9.x is forward-compatible within the major
+#     version, so torch is happy. TensorFlow 2.21.0 was built
+#     against 9.3.0 and refuses to load anything older with:
+#       "Loaded runtime CuDNN library: 9.1.0 but source was compiled
+#        with: 9.3.0. CuDNN library needs to have matching major
+#        version and equal or higher minor version."
+#     9.3.0.75 satisfies both.
+echo "[4b/5] repinning cuDNN to nvidia-cudnn-cu12==9.3.0.75 (torch + TF compatible)"
+pip install --quiet --force-reinstall --no-deps "nvidia-cudnn-cu12==9.3.0.75"
 
 # 5. Verify GPU visibility.
 echo "[5/5] verifying GPU access"

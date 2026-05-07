@@ -55,13 +55,27 @@ for VERSION in "${VERSIONS[@]}"; do
         # shellcheck disable=SC1091
         source "$VENV/bin/activate"
         pip install "declearn==${VERSION}" --no-deps --quiet
+        # Verify the install actually took: a silent pip failure here
+        # would otherwise benchmark whatever declearn was previously
+        # installed, mis-tagged with the new version's commit SHA.
+        INSTALLED=$(pip show declearn | awk '/^Version:/ {print $2}')
+        if [ "$INSTALLED" != "$VERSION" ]; then
+            echo "ERROR: pip install declearn==${VERSION} did not take (got '${INSTALLED}'). Skipping." >&2
+            exit 1
+        fi
+        # Re-pin cuDNN to the cu12 build torch was linked against.
+        # `--no-deps` above blocks transitive cu13 cuDNN reinstalls in
+        # principle, but this is a $0.10 safety net; symptom of the
+        # alternative is `CUDNN_STATUS_NOT_INITIALIZED` halfway through
+        # the sweep with no clear cause. See project_cuda_cudnn_pin.md.
+        pip install --quiet --force-reinstall --no-deps "nvidia-cudnn-cu12==9.3.0.75"
         REAL_SHA=$(git -C "$DECLEARN_REPO" rev-parse "v${VERSION}^{commit}")
         asv run \
             --python=same \
             --set-commit-hash="$REAL_SHA" \
             --show-stderr \
             "${ASV_QUICK_FLAG[@]}"
-    ) || echo "WARN: asv run for ${VERSION} exited non-zero — results on disk may still be valid; continuing."
+    ) || echo "WARN: ${VERSION} exited non-zero — results on disk may still be valid; continuing."
 done
 
 asv publish

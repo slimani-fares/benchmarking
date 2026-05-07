@@ -6,10 +6,13 @@ Each class is a thin wrapper over `build_benchmark(...)` +
 in `benchmarks.workload`. The classes here only declare which slice of
 the parameter space each benchmark exercises.
 
-Every category is crossed with `n_clients` so the suite captures how
-each feature scales with client count. To narrow a category to a
-single client count, edit its `params` / `param_names` to drop the
-`n_clients` axis.
+The `n_clients` axis is currently a single point (`[5]`) to keep the
+per-version sweep under ~2 hours. To restore the scaling story
+(n=5 vs n=20), set `N_CLIENTS_AXIS = [5, 20]` below — it is the
+single source of truth shared across every category. SecAgg is
+deliberately pinned to `[5]` regardless of `N_CLIENTS_AXIS`: the n=20
+masking cell timed out in earlier sweeps and has not been
+diagnosed; do not re-enable n=20 there until that is investigated.
 """
 
 from typing import List
@@ -23,7 +26,6 @@ __all__ = [
     "RegularizersBenchmark",
     "ScaffoldBenchmark",
     "SecAggBenchmark",
-    "SklearnBenchmark",
 ]
 
 
@@ -35,28 +37,23 @@ _BACKEND_LAYOUT = {
 }
 
 # Single source of truth for the n_clients sweep across every category.
-# Trim per-class if a particular cross becomes too slow: override
-# `params[0]` in that class. Two points (small + medium) are the
-# minimum that still produces a scaling line; widen to e.g.
-# `[2, 5, 10, 100]` to surface intermediate behavior.
-N_CLIENTS_AXIS: List[int] = [5, 20]
-
-# sklearn is much slower per round than the other backends — it iterates
-# more steps per epoch on the same dataset — so its axis tracks the
-# global one but n=100 should remain off-limits (one such run is
-# ~30–60 min on its own).
-N_CLIENTS_AXIS_SKLEARN: List[int] = [5, 20]
+# Trimmed to a single point to keep the per-version runtime bounded.
+N_CLIENTS_AXIS: List[int] = [5]
 
 
 class BackendsBenchmark:
     """Sweep fast model backends and client count on the FedAvg baseline.
 
-    sklearn is excluded from this class — see `SklearnBenchmark` — to
-    keep the cross-product runtime bounded.
+    sklearn used to be its own class (`SklearnBenchmark`) but was
+    dropped from the suite because a single FL round on the baseline
+    takes ~10 min and it dominated per-version runtime. haiku was
+    dropped because its `build_model()` is still a stub raising
+    `NotImplementedError`; reintroduce both by adding the backend back
+    to the params tuple once their respective issues are resolved.
     """
 
     timeout = 900.0
-    params = (N_CLIENTS_AXIS, ["torch", "tensorflow", "haiku"])
+    params = (N_CLIENTS_AXIS, ["torch", "tensorflow"])
     param_names = ["n_clients", "backend"]
 
     def setup(self, n_clients: int, backend: str) -> None:
@@ -64,27 +61,6 @@ class BackendsBenchmark:
 
     def time_run(self, n_clients: int, backend: str) -> None:
         spec = build_benchmark(backend=backend, n_clients=n_clients)
-        run_benchmark(spec)
-
-
-class SklearnBenchmark:
-    """sklearn FedAvg over a trimmed client-count axis.
-
-    Split out of `BackendsBenchmark` because sklearn runs are much
-    slower per round (a single FL round at the baseline takes ~3 min
-    where torch/TF take ~20s). Restricting to `n_clients in [2, 5]`
-    keeps this from dominating per-version runtime.
-    """
-
-    timeout = 1200.0
-    params = N_CLIENTS_AXIS_SKLEARN
-    param_names = ["n_clients"]
-
-    def setup(self, n_clients: int) -> None:
-        ensure_data_for_n_clients(n_clients, "flat")
-
-    def time_run(self, n_clients: int) -> None:
-        spec = build_benchmark(backend="sklearn", n_clients=n_clients)
         run_benchmark(spec)
 
 
@@ -140,6 +116,10 @@ class ScaffoldBenchmark:
 class SecAggBenchmark:
     """SecAgg masking sweep over client count on torch.
 
+    Pinned to `n_clients=[5]` independently of `N_CLIENTS_AXIS`: the
+    n=20 masking cell timed out in earlier sweeps (root cause not yet
+    diagnosed). Do not widen until that is resolved.
+
     Joye-Libert is intentionally left out: its modular-exponentiation
     cost scales with the model parameter count, and a single 3-client
     run on the CNN baseline did not finish in 5 min during smoke
@@ -150,7 +130,7 @@ class SecAggBenchmark:
     """
 
     timeout = 1200.0
-    params = (N_CLIENTS_AXIS, ["masking"])
+    params = ([5], ["masking"])
     param_names = ["n_clients", "secagg"]
 
     def setup(self, n_clients: int, secagg: str) -> None:
@@ -161,5 +141,3 @@ class SecAggBenchmark:
             backend="torch", secagg=secagg, n_clients=n_clients
         )
         run_benchmark(spec)
-
-

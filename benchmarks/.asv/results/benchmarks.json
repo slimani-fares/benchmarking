@@ -10,13 +10,11 @@
         ],
         "params": [
             [
-                "5",
-                "20"
+                "5"
             ],
             [
                 "'torch'",
-                "'tensorflow'",
-                "'haiku'"
+                "'tensorflow'"
             ]
         ],
         "repeat": 0,
@@ -38,8 +36,7 @@
         ],
         "params": [
             [
-                "5",
-                "20"
+                "5"
             ]
         ],
         "repeat": 0,
@@ -62,8 +59,7 @@
         ],
         "params": [
             [
-                "5",
-                "20"
+                "5"
             ],
             [
                 "'lasso'",
@@ -90,8 +86,7 @@
         ],
         "params": [
             [
-                "5",
-                "20"
+                "5"
             ]
         ],
         "repeat": 0,
@@ -114,8 +109,7 @@
         ],
         "params": [
             [
-                "5",
-                "20"
+                "5"
             ],
             [
                 "'masking'"
@@ -128,29 +122,6 @@
         "type": "time",
         "unit": "seconds",
         "version": "1dce6c8f5b301d01b8b4060e46eb10eaece40579027feefbf768f15a56b550fd",
-        "warmup_time": -1
-    },
-    "SklearnBenchmark.time_run": {
-        "code": "class SklearnBenchmark:\n    def time_run(self, n_clients: int) -> None:\n        spec = build_benchmark(backend=\"sklearn\", n_clients=n_clients)\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"flat\")",
-        "min_run_count": 2,
-        "name": "SklearnBenchmark.time_run",
-        "number": 0,
-        "param_names": [
-            "n_clients"
-        ],
-        "params": [
-            [
-                "5",
-                "20"
-            ]
-        ],
-        "repeat": 0,
-        "rounds": 2,
-        "sample_time": 0.01,
-        "timeout": 1200.0,
-        "type": "time",
-        "unit": "seconds",
-        "version": "a3489e5b06941fc48bebdc94ea32488bf82464b1ecdcf4b2469c757cb4c99cf4",
         "warmup_time": -1
     },
     "version": 2
