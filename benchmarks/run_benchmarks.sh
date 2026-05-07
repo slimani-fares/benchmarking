@@ -1,19 +1,20 @@
 #!/bin/bash
-# Cross-version benchmark sweep launcher (full timings, no --quick).
+# Cross-version benchmark sweep launcher (--quick by default).
 #
 # Activates the configured venv, pins declearn to each requested
-# released version in turn, and runs the full ASV suite with normal
-# sampling so results are noise-aware (multiple samples per param).
+# released version in turn, and runs the ASV suite with `--quick`
+# (one sample per cell). This matches our usage model: declearn FL
+# benchmarks are network/Python-bound, not GPU-bound, and we care
+# about ~2× regressions, not 5% noise. Set FULL=1 to run the multi-
+# sample noise-aware mode instead.
+#
 # Each version's results are tagged with the matching declearn git
 # commit so ASV plots them on a version timeline.
 #
-# Set QUICK=1 to fall back to one-shot --quick timings (useful for
-# smoke-testing the sweep itself without spending an hour timing).
-#
 # Usage:
-#   ./run_benchmarks.sh                  # use DEFAULT_VERSIONS
-#   ./run_benchmarks.sh 2.7.0 2.8.0      # explicit versions
-#   QUICK=1 ./run_benchmarks.sh          # fast smoke pass (one sample)
+#   ./run_benchmarks.sh                  # --quick, default versions
+#   ./run_benchmarks.sh 2.7.0 2.8.0      # --quick, explicit versions
+#   FULL=1 ./run_benchmarks.sh           # multi-sample, slow but tighter
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -35,10 +36,12 @@ else
     VERSIONS=("${DEFAULT_VERSIONS[@]}")
 fi
 
-ASV_QUICK_FLAG=()
-if [ "${QUICK:-0}" = "1" ]; then
+# --quick is the default. Opt out with FULL=1 for multi-sample timings.
+if [ "${FULL:-0}" = "1" ]; then
+    ASV_QUICK_FLAG=()
+    echo "(FULL=1 set — multi-sample timings, slow)"
+else
     ASV_QUICK_FLAG=(--quick)
-    echo "(QUICK=1 set — using --quick, one-shot timings)"
 fi
 
 # Force-loud GPU: a silent CPU fallback would corrupt the comparison.

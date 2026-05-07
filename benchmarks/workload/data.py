@@ -14,6 +14,8 @@ import numpy as np
 from declearn.dataset.examples import load_mnist
 from declearn.dataset.utils import split_multi_classif_dataset
 
+from benchmarks.workload import baseline as B
+
 __all__ = [
     "BENCH_ROOT",
     "DATA_ROOT",
@@ -34,8 +36,21 @@ def _source_dir(n_clients: int) -> Path:
     return DATA_ROOT / f"source_{n_clients}"
 
 
-def _layout_dir(n_clients: int, layout: str) -> Path:
-    return DATA_ROOT / f"{layout}_{n_clients}"
+def _fraction_tag(fraction: float) -> str:
+    """Stable directory suffix for a sample-fraction value.
+
+    Used so that cached layout dirs at different fractions don't
+    collide. `1.0` -> `"f100"`, `0.1` -> `"f010"`, etc.
+    """
+    if not 0.0 < fraction <= 1.0:
+        raise ValueError(
+            f"fraction must be in (0, 1]; got {fraction!r}."
+        )
+    return f"f{int(round(fraction * 100)):03d}"
+
+
+def _layout_dir(n_clients: int, layout: str, fraction: float) -> Path:
+    return DATA_ROOT / f"{layout}_{n_clients}_{_fraction_tag(fraction)}"
 
 
 def _client_files(folder: Path, idx: int) -> Tuple[Path, Path, Path, Path]:
@@ -113,7 +128,19 @@ def _convert(array: np.ndarray, layout: str, is_target: bool) -> np.ndarray:
     )
 
 
-def ensure_data_for_n_clients(n_clients: int, layout: str) -> Path:
+def _slice(array: np.ndarray, fraction: float) -> np.ndarray:
+    """Return the leading `fraction` of `array` along axis 0."""
+    if fraction >= 1.0:
+        return array
+    n = max(1, int(round(array.shape[0] * fraction)))
+    return array[:n]
+
+
+def ensure_data_for_n_clients(
+    n_clients: int,
+    layout: str,
+    fraction: float = B.BASELINE_DATASET_FRACTION,
+) -> Path:
     """Produce or return the requested layout for `n_clients`.
 
     Layouts:
@@ -122,14 +149,16 @@ def ensure_data_for_n_clients(n_clients: int, layout: str) -> Path:
         - "hwc":  (N, 28, 28, 1) float32, source uint8 targets (TF)
         - "flat": (N, 784) float32, source uint8 targets (sklearn)
 
-    Re-derives from the canonical source split if the requested layout
-    is missing or incomplete.
+    `fraction` slices the leading prefix of each client's train/valid
+    arrays — e.g. `fraction=0.1` keeps 10 % of each shard. The cache
+    folder name embeds the fraction so different fractions coexist on
+    disk. Re-derives from the canonical source split when missing.
     """
     if layout not in _VALID_LAYOUTS:
         raise ValueError(
             f"Unknown layout '{layout}'. Expected one of {_VALID_LAYOUTS}."
         )
-    folder = _layout_dir(n_clients, layout)
+    folder = _layout_dir(n_clients, layout, fraction)
     if _is_complete(folder, n_clients):
         return folder
     source = ensure_source_data(n_clients)
@@ -143,23 +172,30 @@ def ensure_data_for_n_clients(n_clients: int, layout: str) -> Path:
         )
         dst_train_d.parent.mkdir(parents=True, exist_ok=True)
         np.save(
-            dst_train_d, _convert(np.load(src_train_d), layout, is_target=False)
+            dst_train_d,
+            _convert(_slice(np.load(src_train_d), fraction), layout, False),
         )
         np.save(
-            dst_train_t, _convert(np.load(src_train_t), layout, is_target=True)
+            dst_train_t,
+            _convert(_slice(np.load(src_train_t), fraction), layout, True),
         )
         np.save(
-            dst_valid_d, _convert(np.load(src_valid_d), layout, is_target=False)
+            dst_valid_d,
+            _convert(_slice(np.load(src_valid_d), fraction), layout, False),
         )
         np.save(
-            dst_valid_t, _convert(np.load(src_valid_t), layout, is_target=True)
+            dst_valid_t,
+            _convert(_slice(np.load(src_valid_t), fraction), layout, True),
         )
     return folder
 
 
 def client_data_paths(
-    n_clients: int, layout: str, idx: int
+    n_clients: int,
+    layout: str,
+    idx: int,
+    fraction: float = B.BASELINE_DATASET_FRACTION,
 ) -> Tuple[Path, Path, Path, Path]:
     """Return the four per-client array paths for a prepared layout."""
-    folder = _layout_dir(n_clients, layout)
+    folder = _layout_dir(n_clients, layout, fraction)
     return _client_files(folder, idx)
