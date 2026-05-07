@@ -141,6 +141,17 @@ echo "[4/5] reinstalling torch from $TORCH_INDEX (force CUDA-matched build)"
 pip install --quiet --force-reinstall --no-deps \
     --index-url "$TORCH_INDEX" torch
 
+# 4b. Repin cuDNN to the cu12 build torch 2.5.1+cu121 expects.
+#     declearn[tensorflow,haiku] in step 3 transitively installs
+#     nvidia-cudnn-cu13 (cuDNN 9.19.x), which writes into the same
+#     `site-packages/nvidia/cudnn/lib/` namespace and overwrites
+#     the cu12 cuDNN 9.1.0 torch was linked against. Symptom:
+#     `RuntimeError: cuDNN error: CUDNN_STATUS_NOT_INITIALIZED`
+#     on the first conv. Re-install cu12 cuDNN last so the on-disk
+#     `libcudnn.so.9` is the one torch expects.
+echo "[4b/5] repinning cuDNN to nvidia-cudnn-cu12==9.1.0.70 (torch 2.5.1+cu121 ABI)"
+pip install --quiet --force-reinstall --no-deps "nvidia-cudnn-cu12==9.1.0.70"
+
 # 5. Verify GPU visibility.
 echo "[5/5] verifying GPU access"
 python - <<'PY'
@@ -156,11 +167,19 @@ try:
     print(f"  torch.version.cuda        = {torch.version.cuda}")
     if gpu:
         print(f"  torch.cuda.get_device_name(0) = {name}")
+        # Exercise cuDNN — basic CUDA may work even when cuDNN is
+        # broken (e.g. cu12/cu13 cuDNN namespace clash). A bare conv
+        # is the cheapest way to force libcudnn.so.9 + its sublibs
+        # to actually initialize. Symptom of breakage:
+        # CUDNN_STATUS_NOT_INITIALIZED on first conv.
+        x = torch.randn(2, 1, 8, 8, device="cuda")
+        torch.nn.Conv2d(1, 4, 3).cuda()(x)
+        print("  cuDNN conv smoke         = OK")
     else:
         print("  WARNING: torch cannot see the GPU.")
         ok = False
 except Exception as exc:
-    print(f"  torch import failed: {exc!r}")
+    print(f"  torch GPU smoke failed: {exc!r}")
     ok = False
 
 try:
