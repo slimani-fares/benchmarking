@@ -1,6 +1,7 @@
-# ASV outputs
+# ASV outputs — track results/, ignore the regeneratable parts
 benchmarks/data/
-benchmarks/.asv/
+benchmarks/.asv/env/
+benchmarks/.asv/html/
 benchmarks/__pycache__/
 benchmarks/**/__pycache__/
 

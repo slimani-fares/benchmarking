@@ -1,4 +1,5 @@
 data/
-.asv/
+.asv/env/
+.asv/html/
 __pycache__/
 *.pyc

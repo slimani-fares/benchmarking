@@ -1,0 +1,157 @@
+{
+    "BackendsBenchmark.time_run": {
+        "code": "class BackendsBenchmark:\n    def time_run(self, n_clients: int, backend: str) -> None:\n        spec = build_benchmark(backend=backend, n_clients=n_clients)\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int, backend: str) -> None:\n        ensure_data_for_n_clients(n_clients, _BACKEND_LAYOUT[backend])",
+        "min_run_count": 2,
+        "name": "BackendsBenchmark.time_run",
+        "number": 0,
+        "param_names": [
+            "n_clients",
+            "backend"
+        ],
+        "params": [
+            [
+                "5",
+                "20"
+            ],
+            [
+                "'torch'",
+                "'tensorflow'",
+                "'haiku'"
+            ]
+        ],
+        "repeat": 0,
+        "rounds": 2,
+        "sample_time": 0.01,
+        "timeout": 900.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "8b8b1eef214f94eeda618a4515125faaaa0bc69fecca61ba0b2810c790029319",
+        "warmup_time": -1
+    },
+    "DPBenchmark.time_run": {
+        "code": "class DPBenchmark:\n    def time_run(self, n_clients: int) -> None:\n        spec = build_benchmark(backend=\"torch\", dp=True, n_clients=n_clients)\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "min_run_count": 2,
+        "name": "DPBenchmark.time_run",
+        "number": 0,
+        "param_names": [
+            "n_clients"
+        ],
+        "params": [
+            [
+                "5",
+                "20"
+            ]
+        ],
+        "repeat": 0,
+        "rounds": 2,
+        "sample_time": 0.01,
+        "timeout": 900.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "66f2d32e49d1dafe27eb4a8ac26e4cd3dd5ddd91d2c238b0be6a47a4ad775059",
+        "warmup_time": -1
+    },
+    "RegularizersBenchmark.time_run": {
+        "code": "class RegularizersBenchmark:\n    def time_run(self, n_clients: int, regularizer: str) -> None:\n        spec = build_benchmark(\n            backend=\"torch\", regularizer=regularizer, n_clients=n_clients\n        )\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int, regularizer: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "min_run_count": 2,
+        "name": "RegularizersBenchmark.time_run",
+        "number": 0,
+        "param_names": [
+            "n_clients",
+            "regularizer"
+        ],
+        "params": [
+            [
+                "5",
+                "20"
+            ],
+            [
+                "'lasso'",
+                "'ridge'",
+                "'fedprox'"
+            ]
+        ],
+        "repeat": 0,
+        "rounds": 2,
+        "sample_time": 0.01,
+        "timeout": 600.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "fb8747315f802cffd772e0d2aa3cf6e74e4b760aa931c89768f7b92a21300d2a",
+        "warmup_time": -1
+    },
+    "ScaffoldBenchmark.time_run": {
+        "code": "class ScaffoldBenchmark:\n    def time_run(self, n_clients: int) -> None:\n        spec = build_benchmark(\n            backend=\"torch\", scaffold=True, n_clients=n_clients\n        )\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "min_run_count": 2,
+        "name": "ScaffoldBenchmark.time_run",
+        "number": 0,
+        "param_names": [
+            "n_clients"
+        ],
+        "params": [
+            [
+                "5",
+                "20"
+            ]
+        ],
+        "repeat": 0,
+        "rounds": 2,
+        "sample_time": 0.01,
+        "timeout": 600.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "fbbdef540565dd55838c129b172d36bfbed6c7ee27ba69a45c41b807acc792c9",
+        "warmup_time": -1
+    },
+    "SecAggBenchmark.time_run": {
+        "code": "class SecAggBenchmark:\n    def time_run(self, n_clients: int, secagg: str) -> None:\n        spec = build_benchmark(\n            backend=\"torch\", secagg=secagg, n_clients=n_clients\n        )\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int, secagg: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "min_run_count": 2,
+        "name": "SecAggBenchmark.time_run",
+        "number": 0,
+        "param_names": [
+            "n_clients",
+            "secagg"
+        ],
+        "params": [
+            [
+                "5",
+                "20"
+            ],
+            [
+                "'masking'"
+            ]
+        ],
+        "repeat": 0,
+        "rounds": 2,
+        "sample_time": 0.01,
+        "timeout": 1200.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "1dce6c8f5b301d01b8b4060e46eb10eaece40579027feefbf768f15a56b550fd",
+        "warmup_time": -1
+    },
+    "SklearnBenchmark.time_run": {
+        "code": "class SklearnBenchmark:\n    def time_run(self, n_clients: int) -> None:\n        spec = build_benchmark(backend=\"sklearn\", n_clients=n_clients)\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"flat\")",
+        "min_run_count": 2,
+        "name": "SklearnBenchmark.time_run",
+        "number": 0,
+        "param_names": [
+            "n_clients"
+        ],
+        "params": [
+            [
+                "5",
+                "20"
+            ]
+        ],
+        "repeat": 0,
+        "rounds": 2,
+        "sample_time": 0.01,
+        "timeout": 1200.0,
+        "type": "time",
+        "unit": "seconds",
+        "version": "a3489e5b06941fc48bebdc94ea32488bf82464b1ecdcf4b2469c757cb4c99cf4",
+        "warmup_time": -1
+    },
+    "version": 2
+}
