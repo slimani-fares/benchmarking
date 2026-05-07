@@ -14,6 +14,7 @@ __all__ = [
     "BASELINE_BATCH_SIZE",
     "BASELINE_CLIENT_LRATE",
     "BASELINE_CLIENT_MODULES",
+    "BASELINE_DATASET_FRACTION",
     "BASELINE_EVAL_BATCH_SIZE",
     "BASELINE_METRICS",
     "BASELINE_NETWORK_HOST",
@@ -36,6 +37,13 @@ BASELINE_BATCH_SIZE: int = 48
 BASELINE_EVAL_BATCH_SIZE: int = 128
 BASELINE_N_CLIENTS: int = 3
 BASELINE_REGISTRATION_TIMEOUT: int = 60
+# Fraction of each client's MNIST shard used for benchmarking. The full
+# FL pipeline (registration, aggregation, eval, encryption, DP accounting)
+# is exercised identically; only the inner training loop sees less data.
+# This trades MNIST sample count — irrelevant to a "did declearn's plumbing
+# get slower" benchmark — for a 5–10× per-cell speedup. Set to 1.0 to
+# restore the full split; cached layout dirs are keyed on this value.
+BASELINE_DATASET_FRACTION: float = 0.1
 BASELINE_NETWORK_HOST: str = "127.0.0.1"
 BASELINE_NETWORK_PORT: int = 8765
 BASELINE_NETWORK_PROTOCOL: str = "websockets"
