@@ -12,9 +12,16 @@
 # commit so ASV plots them on a version timeline.
 #
 # Usage:
-#   ./run_benchmarks.sh                  # --quick, default versions
-#   ./run_benchmarks.sh 2.7.0 2.8.0      # --quick, explicit versions
-#   FULL=1 ./run_benchmarks.sh           # multi-sample, slow but tighter
+#   ./run_benchmarks.sh                              # --quick, default versions
+#   ./run_benchmarks.sh 2.7.0 2.8.0                  # explicit released versions
+#   ./run_benchmarks.sh path:/abs/path/to/declearn   # local checkout (e.g. a fork)
+#   FULL=1 ./run_benchmarks.sh                       # multi-sample, slow but tighter
+#
+# `path:` mode installs declearn from a local directory (via
+# `pip install <path> --no-deps`) and tags the asv result with the
+# checkout's `git rev-parse HEAD`. Use this to benchmark a fork or
+# in-progress branch alongside released versions; results land in
+# .asv/results/<machine>/<sha>-<env>.json same as for released versions.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -57,14 +64,35 @@ for VERSION in "${VERSIONS[@]}"; do
     (
         # shellcheck disable=SC1091
         source "$VENV/bin/activate"
-        pip install "declearn==${VERSION}" --no-deps --quiet
-        # Verify the install actually took: a silent pip failure here
-        # would otherwise benchmark whatever declearn was previously
-        # installed, mis-tagged with the new version's commit SHA.
-        INSTALLED=$(pip show declearn | awk '/^Version:/ {print $2}')
-        if [ "$INSTALLED" != "$VERSION" ]; then
-            echo "ERROR: pip install declearn==${VERSION} did not take (got '${INSTALLED}'). Skipping." >&2
-            exit 1
+        if [[ "$VERSION" == path:* ]]; then
+            FORK_PATH="${VERSION#path:}"
+            if [ ! -d "$FORK_PATH/.git" ]; then
+                echo "ERROR: $FORK_PATH is not a git checkout." >&2
+                exit 1
+            fi
+            pip install --quiet --no-deps --force-reinstall "$FORK_PATH"
+            REAL_SHA=$(git -C "$FORK_PATH" rev-parse HEAD)
+            INSTALLED=$(pip show declearn | awk '/^Version:/ {print $2}')
+            echo "  installed declearn ${INSTALLED} from ${FORK_PATH} @ ${REAL_SHA:0:8}"
+            # ASV's `repo` (asv.conf.json) is the upstream declearn checkout.
+            # Our fork commit lives only in $FORK_PATH; without a copy of
+            # the object in the upstream repo, asv's `--set-commit-hash`
+            # lookup fails with NoSuchNameError. Fetch the fork branch
+            # into a refs/benchmarks/* namespace so the object is
+            # resolvable but doesn't pollute the branch list.
+            git -C "$DECLEARN_REPO" fetch --quiet "$FORK_PATH" \
+                "+HEAD:refs/benchmarks/$(basename "$FORK_PATH")-$(echo "$REAL_SHA" | cut -c1-8)"
+        else
+            pip install "declearn==${VERSION}" --no-deps --quiet
+            # Verify the install actually took: a silent pip failure here
+            # would otherwise benchmark whatever declearn was previously
+            # installed, mis-tagged with the new version's commit SHA.
+            INSTALLED=$(pip show declearn | awk '/^Version:/ {print $2}')
+            if [ "$INSTALLED" != "$VERSION" ]; then
+                echo "ERROR: pip install declearn==${VERSION} did not take (got '${INSTALLED}'). Skipping." >&2
+                exit 1
+            fi
+            REAL_SHA=$(git -C "$DECLEARN_REPO" rev-parse "v${VERSION}^{commit}")
         fi
         # Re-pin cuDNN to the cu12 build torch was linked against.
         # `--no-deps` above blocks transitive cu13 cuDNN reinstalls in
@@ -72,7 +100,6 @@ for VERSION in "${VERSIONS[@]}"; do
         # alternative is `CUDNN_STATUS_NOT_INITIALIZED` halfway through
         # the sweep with no clear cause. See project_cuda_cudnn_pin.md.
         pip install --quiet --force-reinstall --no-deps "nvidia-cudnn-cu12==9.3.0.75"
-        REAL_SHA=$(git -C "$DECLEARN_REPO" rev-parse "v${VERSION}^{commit}")
         asv run \
             --python=same \
             --set-commit-hash="$REAL_SHA" \
@@ -81,6 +108,11 @@ for VERSION in "${VERSIONS[@]}"; do
     ) || echo "WARN: ${VERSION} exited non-zero — results on disk may still be valid; continuing."
 done
 
+# `asv publish` lives in the venv too. The per-version subshells above
+# activate it locally; here in the parent shell we need to source it
+# explicitly or asv won't be on PATH.
+# shellcheck disable=SC1091
+source "$VENV/bin/activate"
 asv publish
 
 cat <<EOF
