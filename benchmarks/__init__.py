@@ -13,12 +13,66 @@ single source of truth shared across every category. SecAgg is
 deliberately pinned to `[5]` regardless of `N_CLIENTS_AXIS`: the n=20
 masking cell timed out in earlier sweeps and has not been
 diagnosed; do not re-enable n=20 there until that is investigated.
+
+Memory tracking: `time_run` measures peak host-RSS-delta and peak
+GPU bytes as side effects (microseconds; invisible against the
+~70-180s workload) and writes both to a `/tmp` cache. The
+`track_peakmem_run` and `track_peakgpu_run` methods only read from
+that cache — no extra workload runs, so the sweep stays the same
+length. The delta-RSS form sidesteps the "setup dominates peak"
+blind spot; the GPU number sidesteps "ru_maxrss misses VRAM".
 """
 
-from typing import List
+import json
+import os
+import resource
+import tempfile
+from typing import List, Tuple
 
 from benchmarks.workload import build_benchmark, run_benchmark
 from benchmarks.workload.data import ensure_data_for_n_clients
+
+try:
+    import torch
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _TORCH_AVAILABLE = False
+
+
+def _cuda() -> bool:
+    return _TORCH_AVAILABLE and torch.cuda.is_available()
+
+
+def _cache_path(cls_name: str, params: Tuple) -> str:
+    key = "_".join(str(p) for p in params)
+    return os.path.join(
+        tempfile.gettempdir(), f"declearn_mem_{cls_name}_{key}.json"
+    )
+
+
+def _mem_capture_start() -> int:
+    if _cuda():
+        torch.cuda.reset_peak_memory_stats()
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+
+def _mem_capture_end(cls_name: str, params: Tuple, baseline_kb: int) -> None:
+    peak_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    host_delta_bytes = max(peak_kb - baseline_kb, 0) * 1024
+    gpu_bytes = torch.cuda.max_memory_allocated() if _cuda() else 0
+    with open(_cache_path(cls_name, params), "w") as f:
+        json.dump(
+            {"host_delta_bytes": host_delta_bytes, "gpu_bytes": gpu_bytes}, f
+        )
+
+
+def _read_cached(cls_name: str, params: Tuple, key: str) -> int:
+    try:
+        with open(_cache_path(cls_name, params)) as f:
+            return int(json.load(f).get(key, 0))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return 0
+
 
 __all__ = [
     "BackendsBenchmark",
@@ -60,8 +114,26 @@ class BackendsBenchmark:
         ensure_data_for_n_clients(n_clients, _BACKEND_LAYOUT[backend])
 
     def time_run(self, n_clients: int, backend: str) -> None:
+        baseline = _mem_capture_start()
         spec = build_benchmark(backend=backend, n_clients=n_clients)
         run_benchmark(spec)
+        _mem_capture_end("BackendsBenchmark", (n_clients, backend), baseline)
+
+    def track_peakmem_run(self, n_clients: int, backend: str) -> int:
+        return _read_cached(
+            "BackendsBenchmark", (n_clients, backend), "host_delta_bytes"
+        )
+    track_peakmem_run.unit = "bytes"
+
+    def track_peakgpu_run(self, n_clients: int, backend: str) -> int:
+        # Only torch tensors are tracked by torch.cuda. TF would need its
+        # own probe; skip the cell rather than report a misleading 0.
+        if backend != "torch":
+            raise NotImplementedError("GPU mem only tracked for torch backend")
+        return _read_cached(
+            "BackendsBenchmark", (n_clients, backend), "gpu_bytes"
+        )
+    track_peakgpu_run.unit = "bytes"
 
 
 class RegularizersBenchmark:
@@ -75,10 +147,28 @@ class RegularizersBenchmark:
         ensure_data_for_n_clients(n_clients, "chw")
 
     def time_run(self, n_clients: int, regularizer: str) -> None:
+        baseline = _mem_capture_start()
         spec = build_benchmark(
             backend="torch", regularizer=regularizer, n_clients=n_clients
         )
         run_benchmark(spec)
+        _mem_capture_end(
+            "RegularizersBenchmark", (n_clients, regularizer), baseline
+        )
+
+    def track_peakmem_run(self, n_clients: int, regularizer: str) -> int:
+        return _read_cached(
+            "RegularizersBenchmark",
+            (n_clients, regularizer),
+            "host_delta_bytes",
+        )
+    track_peakmem_run.unit = "bytes"
+
+    def track_peakgpu_run(self, n_clients: int, regularizer: str) -> int:
+        return _read_cached(
+            "RegularizersBenchmark", (n_clients, regularizer), "gpu_bytes"
+        )
+    track_peakgpu_run.unit = "bytes"
 
 
 class DPBenchmark:
@@ -92,8 +182,20 @@ class DPBenchmark:
         ensure_data_for_n_clients(n_clients, "chw")
 
     def time_run(self, n_clients: int) -> None:
+        baseline = _mem_capture_start()
         spec = build_benchmark(backend="torch", dp=True, n_clients=n_clients)
         run_benchmark(spec)
+        _mem_capture_end("DPBenchmark", (n_clients,), baseline)
+
+    def track_peakmem_run(self, n_clients: int) -> int:
+        return _read_cached(
+            "DPBenchmark", (n_clients,), "host_delta_bytes"
+        )
+    track_peakmem_run.unit = "bytes"
+
+    def track_peakgpu_run(self, n_clients: int) -> int:
+        return _read_cached("DPBenchmark", (n_clients,), "gpu_bytes")
+    track_peakgpu_run.unit = "bytes"
 
 
 class ScaffoldBenchmark:
@@ -107,10 +209,22 @@ class ScaffoldBenchmark:
         ensure_data_for_n_clients(n_clients, "chw")
 
     def time_run(self, n_clients: int) -> None:
+        baseline = _mem_capture_start()
         spec = build_benchmark(
             backend="torch", scaffold=True, n_clients=n_clients
         )
         run_benchmark(spec)
+        _mem_capture_end("ScaffoldBenchmark", (n_clients,), baseline)
+
+    def track_peakmem_run(self, n_clients: int) -> int:
+        return _read_cached(
+            "ScaffoldBenchmark", (n_clients,), "host_delta_bytes"
+        )
+    track_peakmem_run.unit = "bytes"
+
+    def track_peakgpu_run(self, n_clients: int) -> int:
+        return _read_cached("ScaffoldBenchmark", (n_clients,), "gpu_bytes")
+    track_peakgpu_run.unit = "bytes"
 
 
 class SecAggBenchmark:
@@ -137,7 +251,21 @@ class SecAggBenchmark:
         ensure_data_for_n_clients(n_clients, "chw")
 
     def time_run(self, n_clients: int, secagg: str) -> None:
+        baseline = _mem_capture_start()
         spec = build_benchmark(
             backend="torch", secagg=secagg, n_clients=n_clients
         )
         run_benchmark(spec)
+        _mem_capture_end("SecAggBenchmark", (n_clients, secagg), baseline)
+
+    def track_peakmem_run(self, n_clients: int, secagg: str) -> int:
+        return _read_cached(
+            "SecAggBenchmark", (n_clients, secagg), "host_delta_bytes"
+        )
+    track_peakmem_run.unit = "bytes"
+
+    def track_peakgpu_run(self, n_clients: int, secagg: str) -> int:
+        return _read_cached(
+            "SecAggBenchmark", (n_clients, secagg), "gpu_bytes"
+        )
+    track_peakgpu_run.unit = "bytes"
