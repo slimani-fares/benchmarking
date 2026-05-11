@@ -75,13 +75,16 @@ for VERSION in "${VERSIONS[@]}"; do
             INSTALLED=$(pip show declearn | awk '/^Version:/ {print $2}')
             echo "  installed declearn ${INSTALLED} from ${FORK_PATH} @ ${REAL_SHA:0:8}"
             # ASV's `repo` (asv.conf.json) is the upstream declearn checkout.
-            # Our fork commit lives only in $FORK_PATH; without a copy of
-            # the object in the upstream repo, asv's `--set-commit-hash`
-            # lookup fails with NoSuchNameError. Fetch the fork branch
-            # into a refs/benchmarks/* namespace so the object is
-            # resolvable but doesn't pollute the branch list.
+            # Our fork commit lives only in $FORK_PATH; without it in the
+            # upstream repo, asv's `--set-commit-hash` lookup fails. We
+            # fetch the fork's HEAD into upstream as a proper branch
+            # named after the fork's current branch, so that branch can
+            # also be listed in asv.conf.json's `branches` and the
+            # progression detector treats the patched commit as a
+            # linear successor instead of a side-ref.
+            FORK_BRANCH=$(git -C "$FORK_PATH" rev-parse --abbrev-ref HEAD)
             git -C "$DECLEARN_REPO" fetch --quiet "$FORK_PATH" \
-                "+HEAD:refs/benchmarks/$(basename "$FORK_PATH")-$(echo "$REAL_SHA" | cut -c1-8)"
+                "+HEAD:refs/heads/${FORK_BRANCH}"
         else
             pip install "declearn==${VERSION}" --no-deps --quiet
             # Verify the install actually took: a silent pip failure here

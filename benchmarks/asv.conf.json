@@ -3,7 +3,7 @@
     "project": "declearn",
     "project_url": "https://gitlab.inria.fr/magnet/declearn/declearn2",
     "repo": "../../declearn",
-    "branches": ["patched-2.8.0"],
+    "branches": ["develop", "patched-2.8.0"],
     "environment_type": "existing",
     "matrix": {},
     "benchmark_dir": ".",

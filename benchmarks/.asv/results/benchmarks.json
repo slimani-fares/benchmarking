@@ -1,6 +1,6 @@
 {
     "BackendsBenchmark.time_run": {
-        "code": "class BackendsBenchmark:\n    def time_run(self, n_clients: int, backend: str) -> None:\n        spec = build_benchmark(backend=backend, n_clients=n_clients)\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int, backend: str) -> None:\n        ensure_data_for_n_clients(n_clients, _BACKEND_LAYOUT[backend])",
+        "code": "class BackendsBenchmark:\n    def time_run(self, n_clients: int, backend: str) -> None:\n        baseline = _mem_capture_start()\n        spec = build_benchmark(backend=backend, n_clients=n_clients)\n        run_benchmark(spec)\n        _mem_capture_end(\"BackendsBenchmark\", (n_clients, backend), baseline)\n\n    def setup(self, n_clients: int, backend: str) -> None:\n        ensure_data_for_n_clients(n_clients, _BACKEND_LAYOUT[backend])",
         "min_run_count": 2,
         "name": "BackendsBenchmark.time_run",
         "number": 0,
@@ -23,11 +23,53 @@
         "timeout": 900.0,
         "type": "time",
         "unit": "seconds",
-        "version": "8b8b1eef214f94eeda618a4515125faaaa0bc69fecca61ba0b2810c790029319",
+        "version": "0ab7dcb266bc7d311423aa48a5c9ab1fb5e089bbead421f0f64a5bb3464e64b9",
         "warmup_time": -1
     },
+    "BackendsBenchmark.track_peakgpu_run": {
+        "code": "class BackendsBenchmark:\n    def track_peakgpu_run(self, n_clients: int, backend: str) -> int:\n        # Only torch tensors are tracked by torch.cuda. TF would need its\n        # own probe; skip the cell rather than report a misleading 0.\n        if backend != \"torch\":\n            raise NotImplementedError(\"GPU mem only tracked for torch backend\")\n        return _read_cached(\n            \"BackendsBenchmark\", (n_clients, backend), \"gpu_bytes\"\n        )\n\n    def setup(self, n_clients: int, backend: str) -> None:\n        ensure_data_for_n_clients(n_clients, _BACKEND_LAYOUT[backend])",
+        "name": "BackendsBenchmark.track_peakgpu_run",
+        "param_names": [
+            "n_clients",
+            "backend"
+        ],
+        "params": [
+            [
+                "5"
+            ],
+            [
+                "'torch'",
+                "'tensorflow'"
+            ]
+        ],
+        "timeout": 900.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "ec6ad525d6c988a7f147fbae1de7730c11dae61e75bf0a8ec3efe2ea95a769ea"
+    },
+    "BackendsBenchmark.track_peakmem_run": {
+        "code": "class BackendsBenchmark:\n    def track_peakmem_run(self, n_clients: int, backend: str) -> int:\n        return _read_cached(\n            \"BackendsBenchmark\", (n_clients, backend), \"host_delta_bytes\"\n        )\n\n    def setup(self, n_clients: int, backend: str) -> None:\n        ensure_data_for_n_clients(n_clients, _BACKEND_LAYOUT[backend])",
+        "name": "BackendsBenchmark.track_peakmem_run",
+        "param_names": [
+            "n_clients",
+            "backend"
+        ],
+        "params": [
+            [
+                "5"
+            ],
+            [
+                "'torch'",
+                "'tensorflow'"
+            ]
+        ],
+        "timeout": 900.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "3fbc3f925f88a715dd584521be789ec866b0fac45ecb96198e9990cad0036da0"
+    },
     "DPBenchmark.time_run": {
-        "code": "class DPBenchmark:\n    def time_run(self, n_clients: int) -> None:\n        spec = build_benchmark(backend=\"torch\", dp=True, n_clients=n_clients)\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "code": "class DPBenchmark:\n    def time_run(self, n_clients: int) -> None:\n        baseline = _mem_capture_start()\n        spec = build_benchmark(backend=\"torch\", dp=True, n_clients=n_clients)\n        run_benchmark(spec)\n        _mem_capture_end(\"DPBenchmark\", (n_clients,), baseline)\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
         "min_run_count": 2,
         "name": "DPBenchmark.time_run",
         "number": 0,
@@ -45,11 +87,43 @@
         "timeout": 900.0,
         "type": "time",
         "unit": "seconds",
-        "version": "66f2d32e49d1dafe27eb4a8ac26e4cd3dd5ddd91d2c238b0be6a47a4ad775059",
+        "version": "3115ea2cebb86e800bb4a5d48d502d7f2df554c40b9de5203200ef2ed104a03b",
         "warmup_time": -1
     },
+    "DPBenchmark.track_peakgpu_run": {
+        "code": "class DPBenchmark:\n    def track_peakgpu_run(self, n_clients: int) -> int:\n        return _read_cached(\"DPBenchmark\", (n_clients,), \"gpu_bytes\")\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "name": "DPBenchmark.track_peakgpu_run",
+        "param_names": [
+            "n_clients"
+        ],
+        "params": [
+            [
+                "5"
+            ]
+        ],
+        "timeout": 900.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "d66bf4dacdd0ee5c7b969927fee4407e013bd26e848650155fee2c8b2b1303f2"
+    },
+    "DPBenchmark.track_peakmem_run": {
+        "code": "class DPBenchmark:\n    def track_peakmem_run(self, n_clients: int) -> int:\n        return _read_cached(\n            \"DPBenchmark\", (n_clients,), \"host_delta_bytes\"\n        )\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "name": "DPBenchmark.track_peakmem_run",
+        "param_names": [
+            "n_clients"
+        ],
+        "params": [
+            [
+                "5"
+            ]
+        ],
+        "timeout": 900.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "a11b470721031e3c78af5fce4ca20627fe0309475fa1e47226afb3b29c50ce80"
+    },
     "RegularizersBenchmark.time_run": {
-        "code": "class RegularizersBenchmark:\n    def time_run(self, n_clients: int, regularizer: str) -> None:\n        spec = build_benchmark(\n            backend=\"torch\", regularizer=regularizer, n_clients=n_clients\n        )\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int, regularizer: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "code": "class RegularizersBenchmark:\n    def time_run(self, n_clients: int, regularizer: str) -> None:\n        baseline = _mem_capture_start()\n        spec = build_benchmark(\n            backend=\"torch\", regularizer=regularizer, n_clients=n_clients\n        )\n        run_benchmark(spec)\n        _mem_capture_end(\n            \"RegularizersBenchmark\", (n_clients, regularizer), baseline\n        )\n\n    def setup(self, n_clients: int, regularizer: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
         "min_run_count": 2,
         "name": "RegularizersBenchmark.time_run",
         "number": 0,
@@ -73,11 +147,55 @@
         "timeout": 600.0,
         "type": "time",
         "unit": "seconds",
-        "version": "fb8747315f802cffd772e0d2aa3cf6e74e4b760aa931c89768f7b92a21300d2a",
+        "version": "368596cbd935c3f2c72b1cccc73c6d2d7ad9349dbf8c9bb2e4ae3751ec617cca",
         "warmup_time": -1
     },
+    "RegularizersBenchmark.track_peakgpu_run": {
+        "code": "class RegularizersBenchmark:\n    def track_peakgpu_run(self, n_clients: int, regularizer: str) -> int:\n        return _read_cached(\n            \"RegularizersBenchmark\", (n_clients, regularizer), \"gpu_bytes\"\n        )\n\n    def setup(self, n_clients: int, regularizer: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "name": "RegularizersBenchmark.track_peakgpu_run",
+        "param_names": [
+            "n_clients",
+            "regularizer"
+        ],
+        "params": [
+            [
+                "5"
+            ],
+            [
+                "'lasso'",
+                "'ridge'",
+                "'fedprox'"
+            ]
+        ],
+        "timeout": 600.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "7871213b5bbce3c53b316642a5554bf4a1a0852906361059f58197e422a3c474"
+    },
+    "RegularizersBenchmark.track_peakmem_run": {
+        "code": "class RegularizersBenchmark:\n    def track_peakmem_run(self, n_clients: int, regularizer: str) -> int:\n        return _read_cached(\n            \"RegularizersBenchmark\",\n            (n_clients, regularizer),\n            \"host_delta_bytes\",\n        )\n\n    def setup(self, n_clients: int, regularizer: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "name": "RegularizersBenchmark.track_peakmem_run",
+        "param_names": [
+            "n_clients",
+            "regularizer"
+        ],
+        "params": [
+            [
+                "5"
+            ],
+            [
+                "'lasso'",
+                "'ridge'",
+                "'fedprox'"
+            ]
+        ],
+        "timeout": 600.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "2b2d6c910a86a7e789ab5dc744ca1f5d5aef5ee92ea24ca217b95116ea4e0ff1"
+    },
     "ScaffoldBenchmark.time_run": {
-        "code": "class ScaffoldBenchmark:\n    def time_run(self, n_clients: int) -> None:\n        spec = build_benchmark(\n            backend=\"torch\", scaffold=True, n_clients=n_clients\n        )\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "code": "class ScaffoldBenchmark:\n    def time_run(self, n_clients: int) -> None:\n        baseline = _mem_capture_start()\n        spec = build_benchmark(\n            backend=\"torch\", scaffold=True, n_clients=n_clients\n        )\n        run_benchmark(spec)\n        _mem_capture_end(\"ScaffoldBenchmark\", (n_clients,), baseline)\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
         "min_run_count": 2,
         "name": "ScaffoldBenchmark.time_run",
         "number": 0,
@@ -95,11 +213,43 @@
         "timeout": 600.0,
         "type": "time",
         "unit": "seconds",
-        "version": "fbbdef540565dd55838c129b172d36bfbed6c7ee27ba69a45c41b807acc792c9",
+        "version": "3bc838e5570f148a5a5e1b78629fd8c96079cbf6885c386dff01c9d50a41d7a2",
         "warmup_time": -1
     },
+    "ScaffoldBenchmark.track_peakgpu_run": {
+        "code": "class ScaffoldBenchmark:\n    def track_peakgpu_run(self, n_clients: int) -> int:\n        return _read_cached(\"ScaffoldBenchmark\", (n_clients,), \"gpu_bytes\")\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "name": "ScaffoldBenchmark.track_peakgpu_run",
+        "param_names": [
+            "n_clients"
+        ],
+        "params": [
+            [
+                "5"
+            ]
+        ],
+        "timeout": 600.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "25c796fdb083d8e8785e7d6fce43aaabde0117cd0844a7b72691bd6fefc4c1bd"
+    },
+    "ScaffoldBenchmark.track_peakmem_run": {
+        "code": "class ScaffoldBenchmark:\n    def track_peakmem_run(self, n_clients: int) -> int:\n        return _read_cached(\n            \"ScaffoldBenchmark\", (n_clients,), \"host_delta_bytes\"\n        )\n\n    def setup(self, n_clients: int) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "name": "ScaffoldBenchmark.track_peakmem_run",
+        "param_names": [
+            "n_clients"
+        ],
+        "params": [
+            [
+                "5"
+            ]
+        ],
+        "timeout": 600.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "9e3f88ca2fc4903ef4915f8fa653f1e976ecf6f53efd6f50fe47be22e7b687e0"
+    },
     "SecAggBenchmark.time_run": {
-        "code": "class SecAggBenchmark:\n    def time_run(self, n_clients: int, secagg: str) -> None:\n        spec = build_benchmark(\n            backend=\"torch\", secagg=secagg, n_clients=n_clients\n        )\n        run_benchmark(spec)\n\n    def setup(self, n_clients: int, secagg: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "code": "class SecAggBenchmark:\n    def time_run(self, n_clients: int, secagg: str) -> None:\n        baseline = _mem_capture_start()\n        spec = build_benchmark(\n            backend=\"torch\", secagg=secagg, n_clients=n_clients\n        )\n        run_benchmark(spec)\n        _mem_capture_end(\"SecAggBenchmark\", (n_clients, secagg), baseline)\n\n    def setup(self, n_clients: int, secagg: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
         "min_run_count": 2,
         "name": "SecAggBenchmark.time_run",
         "number": 0,
@@ -121,8 +271,48 @@
         "timeout": 1200.0,
         "type": "time",
         "unit": "seconds",
-        "version": "1dce6c8f5b301d01b8b4060e46eb10eaece40579027feefbf768f15a56b550fd",
+        "version": "40ccc4e6b71a3c9791e840e4135b0e7e48419a49e33b9a5f651fde0c280bec69",
         "warmup_time": -1
+    },
+    "SecAggBenchmark.track_peakgpu_run": {
+        "code": "class SecAggBenchmark:\n    def track_peakgpu_run(self, n_clients: int, secagg: str) -> int:\n        return _read_cached(\n            \"SecAggBenchmark\", (n_clients, secagg), \"gpu_bytes\"\n        )\n\n    def setup(self, n_clients: int, secagg: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "name": "SecAggBenchmark.track_peakgpu_run",
+        "param_names": [
+            "n_clients",
+            "secagg"
+        ],
+        "params": [
+            [
+                "5"
+            ],
+            [
+                "'masking'"
+            ]
+        ],
+        "timeout": 1200.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "19e0e44369fdb4bf4522b3ffb78f706c319c8ac4175f010e9a002eb5e74995fd"
+    },
+    "SecAggBenchmark.track_peakmem_run": {
+        "code": "class SecAggBenchmark:\n    def track_peakmem_run(self, n_clients: int, secagg: str) -> int:\n        return _read_cached(\n            \"SecAggBenchmark\", (n_clients, secagg), \"host_delta_bytes\"\n        )\n\n    def setup(self, n_clients: int, secagg: str) -> None:\n        ensure_data_for_n_clients(n_clients, \"chw\")",
+        "name": "SecAggBenchmark.track_peakmem_run",
+        "param_names": [
+            "n_clients",
+            "secagg"
+        ],
+        "params": [
+            [
+                "5"
+            ],
+            [
+                "'masking'"
+            ]
+        ],
+        "timeout": 1200.0,
+        "type": "track",
+        "unit": "bytes",
+        "version": "6732f859ab39ff2850f64f9bd65c8afa5ea79f3fc41af297ae7b515fdcfc6a63"
     },
     "version": 2
 }
