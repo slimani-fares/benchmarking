@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-
 from declearn.dataset.examples import load_mnist
 from declearn.dataset.utils import split_multi_classif_dataset
 

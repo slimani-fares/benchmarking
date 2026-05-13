@@ -12,7 +12,6 @@ import importlib
 from typing import List, Optional
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from declearn.dataset import InMemoryDataset
 from declearn.main.config import FLOptimConfig, FLRunConfig
 from declearn.model.api import Model
@@ -133,8 +132,10 @@ def _build_secagg(
     id_keys = [
         IdentityKeys(prv, trusted=public_keys) for prv in private_keys
     ]
-    server_cfg = MaskingSecaggConfigServer(bitsize=64, clipval=1e8)
-    client_cfgs = [
+    server_cfg: SecaggConfigServer = MaskingSecaggConfigServer(
+        bitsize=64, clipval=1e8
+    )
+    client_cfgs: List[Optional[SecaggConfigClient]] = [
         MaskingSecaggConfigClient(id_keys=keys) for keys in id_keys
     ]
     return server_cfg, client_cfgs
@@ -171,7 +172,7 @@ def _build_clients(
     return clients
 
 
-def build_benchmark(
+def build_benchmark(  # noqa: PLR0913 — flat axis API by design
     backend: str = B.BASELINE_BACKEND,
     n_clients: int = B.BASELINE_N_CLIENTS,
     regularizer: Optional[str] = None,

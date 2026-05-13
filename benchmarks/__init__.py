@@ -104,7 +104,7 @@ class BackendsBenchmark:
         return _read_cached(
             "BackendsBenchmark", (n_clients, backend), "host_delta_bytes"
         )
-    track_peakmem_run.unit = "bytes"
+    track_peakmem_run.unit = "bytes"  # type: ignore[attr-defined]
 
     def track_peakgpu_run(self, n_clients: int, backend: str) -> int:
         # Only torch tensors are tracked by torch.cuda. TF would need its
@@ -114,7 +114,7 @@ class BackendsBenchmark:
         return _read_cached(
             "BackendsBenchmark", (n_clients, backend), "gpu_bytes"
         )
-    track_peakgpu_run.unit = "bytes"
+    track_peakgpu_run.unit = "bytes"  # type: ignore[attr-defined]
 
 
 class RegularizersBenchmark:
@@ -143,13 +143,13 @@ class RegularizersBenchmark:
             (n_clients, regularizer),
             "host_delta_bytes",
         )
-    track_peakmem_run.unit = "bytes"
+    track_peakmem_run.unit = "bytes"  # type: ignore[attr-defined]
 
     def track_peakgpu_run(self, n_clients: int, regularizer: str) -> int:
         return _read_cached(
             "RegularizersBenchmark", (n_clients, regularizer), "gpu_bytes"
         )
-    track_peakgpu_run.unit = "bytes"
+    track_peakgpu_run.unit = "bytes"  # type: ignore[attr-defined]
 
 
 class ScaffoldBenchmark:
@@ -174,11 +174,11 @@ class ScaffoldBenchmark:
         return _read_cached(
             "ScaffoldBenchmark", (n_clients,), "host_delta_bytes"
         )
-    track_peakmem_run.unit = "bytes"
+    track_peakmem_run.unit = "bytes"  # type: ignore[attr-defined]
 
     def track_peakgpu_run(self, n_clients: int) -> int:
         return _read_cached("ScaffoldBenchmark", (n_clients,), "gpu_bytes")
-    track_peakgpu_run.unit = "bytes"
+    track_peakgpu_run.unit = "bytes"  # type: ignore[attr-defined]
 
 
 class SecAggBenchmark:
@@ -208,10 +208,10 @@ class SecAggBenchmark:
         return _read_cached(
             "SecAggBenchmark", (n_clients, secagg), "host_delta_bytes"
         )
-    track_peakmem_run.unit = "bytes"
+    track_peakmem_run.unit = "bytes"  # type: ignore[attr-defined]
 
     def track_peakgpu_run(self, n_clients: int, secagg: str) -> int:
         return _read_cached(
             "SecAggBenchmark", (n_clients, secagg), "gpu_bytes"
         )
-    track_peakgpu_run.unit = "bytes"
+    track_peakgpu_run.unit = "bytes"  # type: ignore[attr-defined]

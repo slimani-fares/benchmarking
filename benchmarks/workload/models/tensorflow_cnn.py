@@ -1,7 +1,6 @@
 """Standard MNIST CNN built with TensorFlow Keras."""
 
 import tensorflow as tf  # type: ignore
-
 from declearn.model.api import Model
 from declearn.model.tensorflow import TensorflowModel
 
