@@ -26,7 +26,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VENV="${BENCH_VENV:-/venv}"
+VENV="${BENCH_VENV:-$HOME/.venvs/declearn-bench-gpu}"
 DECLEARN_REPO="${DECLEARN_REPO:-$(cd "$(dirname "$0")/../../declearn" 2>/dev/null && pwd)}"
 DEFAULT_VERSIONS=("2.7.0" "2.8.0")
 

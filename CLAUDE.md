@@ -53,40 +53,24 @@ asv check --python=same     # discovery validation, no timing
 
 Cluster (GPU production):
 ```
-./bootstrap_cluster.sh                          # idempotent
-source /venv/bin/activate                       # declearn's CI image venv
-export DECLEARN_BENCH_FORCE_GPU=1               # fail loudly on CPU fallback
+./bootstrap_cluster.sh                                  # idempotent
+source ~/.venvs/declearn-bench-gpu/bin/activate
+export DECLEARN_BENCH_FORCE_GPU=1                       # fail loudly on CPU fallback
 asv run --python=same --quick --show-stderr
 ```
 
-## Production env: declearn's CI image
+## Production env
 
-Benchmarks run inside the same Docker image declearn's own CI uses:
-`registry.gitlab.inria.fr/magnet/declearn/declearn2/ci-python311:latest`.
-It's built from [`declearn/ci/Dockerfile`](../declearn/ci/Dockerfile):
-`nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04` + Python 3.11 (deadsnakes)
-+ a venv at `/venv` with `pip` and `tox`.
+`bootstrap_cluster.sh` installs the suite into a Python 3.11 venv at
+`$BENCH_VENV` (default `~/.venvs/declearn-bench-gpu`). It does *not*
+create the venv, install Python, or manage CUDA — the host is expected
+to provide a Python 3.11 interpreter and a working CUDA toolchain on
+the standard search path (driver + cuDNN libraries).
 
-CUDA 12.8 and cuDNN live in the OS, not in pip-installed packages, so
-the cu12/cu13 namespace clash the old bootstrap had to repin around
-just doesn't happen here. `pip install declearn[torch,tensorflow,...]`
-"just works."
-
-`Dockerfile` at the repo root extends that image with our suite-specific
-deps (asv, cryptography, gmpy2). Build + run:
-```
-docker build -t declearn-bench .
-docker run --gpus all declearn-bench         # invokes run_benchmarks.sh
-```
-
-`bootstrap_cluster.sh` is the no-Docker path: same install steps, run
-against an existing venv (defaults to `/venv`, override via
-`BENCH_VENV=...`).
-
-Two env vars are exported by both paths to mirror declearn's
-`tox -e py311-ci` config: `TF_FORCE_GPU_ALLOW_GROWTH=true` and
-`XLA_PYTHON_CLIENT_PREALLOCATE=false`. Without these, TF or JAX
-pre-allocate the entire GPU and starve torch in side-by-side cells.
+Two env vars are exported, mirroring declearn's `tox -e py311-ci`:
+`TF_FORCE_GPU_ALLOW_GROWTH=true` and `XLA_PYTHON_CLIENT_PREALLOCATE=false`.
+Without these, TF or JAX pre-allocate the entire GPU and starve torch
+in side-by-side cells.
 
 `websockets<14.0` is pinned explicitly because pip's resolver
 occasionally lets 14.x slip past declearn 2.8.0's `<14.0` constraint;

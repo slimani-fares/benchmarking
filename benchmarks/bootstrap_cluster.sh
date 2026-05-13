@@ -1,12 +1,9 @@
 #!/bin/bash
 # Install the benchmark suite's runtime deps into an existing venv.
 #
-# Designed to run inside declearn's CI image
-# (registry.gitlab.inria.fr/magnet/declearn/declearn2/ci-python311),
-# which already provides Python 3.11 at /venv and a system-level
-# CUDA 12.8 + cuDNN toolchain. Outside that image, the venv at
-# $BENCH_VENV must already exist and the host must have a working
-# CUDA toolchain on the standard search path.
+# Expects $BENCH_VENV to point at a Python 3.11 venv on a host with a
+# working CUDA toolchain (driver + cuDNN libraries) on the standard
+# search path. Does NOT manage Python or CUDA itself.
 #
 # Usage:
 #   ./bootstrap_cluster.sh
@@ -14,7 +11,7 @@
 
 set -euo pipefail
 
-BENCH_VENV="${BENCH_VENV:-/venv}"
+BENCH_VENV="${BENCH_VENV:-$HOME/.venvs/declearn-bench-gpu}"
 DECLEARN_VERSION="${DECLEARN_VERSION:-2.8.0}"
 
 if [ ! -d "$BENCH_VENV" ]; then
