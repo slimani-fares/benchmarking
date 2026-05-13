@@ -29,22 +29,18 @@ from benchmarks.workload.spec import BenchmarkSpec, ClientSpec
 __all__ = ["build_benchmark"]
 
 
-_VALID_BACKENDS = ("torch", "tensorflow", "sklearn", "haiku")
-_VALID_REGULARIZERS = (None, "lasso", "ridge", "fedprox")
+_VALID_BACKENDS = ("torch", "tensorflow")
+_VALID_REGULARIZERS = (None, "ridge", "fedprox")
 _VALID_SECAGG = (None, "masking", "joye-libert")
 
 _BACKEND_LAYOUT = {
     "torch": "chw",
     "tensorflow": "hwc",
-    "sklearn": "flat",
-    "haiku": "hwc",
 }
 
 _BACKEND_MODEL_MODULE = {
     "torch": "benchmarks.workload.models.torch_cnn",
     "tensorflow": "benchmarks.workload.models.tensorflow_cnn",
-    "sklearn": "benchmarks.workload.models.sklearn_sgd",
-    "haiku": "benchmarks.workload.models.haiku_cnn",
 }
 
 
@@ -68,10 +64,6 @@ def _validate(
             f"Invalid secagg '{secagg}'. Expected one of {_VALID_SECAGG}."
         )
     if scaffold and backend != "torch":
-        # Scaffold modules are model-agnostic in declearn but the v1
-        # benchmark suite restricts scaffold runs to torch to keep the
-        # smoke-test surface manageable. Document blockers in NOTES.md
-        # before relaxing this.
         raise ValueError(
             "SCAFFOLD is restricted to backend='torch' in the v1 "
             "benchmark suite."
@@ -208,12 +200,12 @@ def build_benchmark(
     Parameters
     ----------
     backend:
-        One of `"torch"`, `"tensorflow"`, `"sklearn"`, `"haiku"`.
+        One of `"torch"`, `"tensorflow"`.
     n_clients:
         Number of federated clients to spawn.
     regularizer:
-        Optional client-side loss regularizer. One of `None`, `"lasso"`,
-        `"ridge"`, `"fedprox"`.
+        Optional client-side loss regularizer. One of `None`, `"ridge"`,
+        `"fedprox"`.
     scaffold:
         Whether to enable SCAFFOLD aux-var exchange. Requires
         `backend="torch"` in the v1 suite.

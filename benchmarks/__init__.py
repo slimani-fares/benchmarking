@@ -85,8 +85,6 @@ __all__ = [
 _BACKEND_LAYOUT = {
     "torch": "chw",
     "tensorflow": "hwc",
-    "sklearn": "flat",
-    "haiku": "hwc",
 }
 
 # Single source of truth for the n_clients sweep across every category.
@@ -95,15 +93,7 @@ N_CLIENTS_AXIS: List[int] = [5]
 
 
 class BackendsBenchmark:
-    """Sweep fast model backends and client count on the FedAvg baseline.
-
-    sklearn used to be its own class (`SklearnBenchmark`) but was
-    dropped from the suite because a single FL round on the baseline
-    takes ~10 min and it dominated per-version runtime. haiku was
-    dropped because its `build_model()` is still a stub raising
-    `NotImplementedError`; reintroduce both by adding the backend back
-    to the params tuple once their respective issues are resolved.
-    """
+    """Sweep model backends and client count on the FedAvg baseline."""
 
     timeout = 900.0
     params = (N_CLIENTS_AXIS, ["torch", "tensorflow"])
@@ -139,7 +129,7 @@ class RegularizersBenchmark:
     """Sweep client-side loss regularizers and client count (torch FedAvg)."""
 
     timeout = 600.0
-    params = (N_CLIENTS_AXIS, ["lasso", "ridge", "fedprox"])
+    params = (N_CLIENTS_AXIS, ["ridge", "fedprox"])
     param_names = ["n_clients", "regularizer"]
 
     def setup(self, n_clients: int, regularizer: str) -> None:

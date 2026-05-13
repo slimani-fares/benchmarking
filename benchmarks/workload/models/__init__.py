@@ -2,8 +2,7 @@
 
 Each module exposes a `build_model() -> declearn.model.api.Model` function.
 Backends are imported lazily by `workload.build` so that missing optional
-dependencies (e.g. haiku) only surface when the corresponding backend is
-selected.
+dependencies only surface when the corresponding backend is selected.
 """
 
 __all__: list[str] = []

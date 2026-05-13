@@ -124,7 +124,7 @@ pip install --quiet --upgrade pip
 #    from the CUDA-matched index so the wheel matches the driver.
 echo "[3/5] installing declearn==$DECLEARN_VERSION + deps"
 pip install --quiet \
-    "declearn[torch,tensorflow,haiku,websockets]==$DECLEARN_VERSION" \
+    "declearn[torch,tensorflow,websockets]==$DECLEARN_VERSION" \
     "websockets<14.0" \
     asv \
     cryptography \
@@ -141,7 +141,7 @@ pip install --quiet --force-reinstall --no-deps \
     --index-url "$TORCH_INDEX" torch
 
 # 4b. Repin cuDNN to a cu12 build that satisfies BOTH torch and TF.
-#     declearn[tensorflow,haiku] in step 3 transitively installs
+#     declearn[tensorflow] in step 3 transitively installs
 #     nvidia-cudnn-cu13 (cuDNN 9.19.x), which writes into the same
 #     `site-packages/nvidia/cudnn/lib/` namespace and overwrites
 #     whatever cu12 cuDNN was there. Without this step the symptom

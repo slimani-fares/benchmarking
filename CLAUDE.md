@@ -40,7 +40,7 @@ note `project_benchmarks_usage_model.md`.
 
 The original brief was strict: `benchmarks/` is the only place we
 write. If a benchmark hits a declearn limitation, document it in
-`benchmarks/NOTES.md`, don't patch declearn.
+this CLAUDE.md, don't patch declearn.
 
 ## Running
 
@@ -83,9 +83,8 @@ asv run --python=same --quick --show-stderr
 
 | Class | Cross | Notes |
 |---|---|---|
-| `BackendsBenchmark` | `n_clients × backend` | torch / TF / haiku |
-| `SklearnBenchmark` | `n_clients` (trimmed axis) | split out — sklearn is ~20× slower |
-| `RegularizersBenchmark` | `n_clients × regularizer` | torch FedAvg + lasso/ridge/fedprox |
+| `BackendsBenchmark` | `n_clients × backend` | torch / TF |
+| `RegularizersBenchmark` | `n_clients × regularizer` | torch FedAvg + ridge/fedprox |
 | `ScaffoldBenchmark` | `n_clients` | torch SCAFFOLD |
 | `SecAggBenchmark` | `n_clients × method` | masking only — joye-libert dropped, see NOTES |
 
@@ -94,8 +93,6 @@ class by overriding `params` in that class.
 
 ## Known gotchas / deferrals
 
-- **haiku backend** is a stub raising `NotImplementedError`. Sketch
-  for a working impl is in `benchmarks/NOTES.md`.
 - **joye-libert SecAgg** dropped from the suite — modular
   exponentiation × CNN parameter count exceeds practical timeouts.
 - **n_clients=100** was never smoke-tested in the v1 build; if

@@ -29,7 +29,7 @@ SEED = 42
 BENCH_ROOT = Path(__file__).resolve().parent.parent
 DATA_ROOT = BENCH_ROOT / "data"
 
-_VALID_LAYOUTS = ("raw", "chw", "hwc", "flat")
+_VALID_LAYOUTS = ("raw", "chw", "hwc")
 
 
 def _source_dir(n_clients: int) -> Path:
@@ -116,9 +116,6 @@ def _convert(array: np.ndarray, layout: str, is_target: bool) -> np.ndarray:
     if layout == "hwc":
         # (N, 28, 28) -> (N, 28, 28, 1)
         return array.reshape(array.shape[0], 28, 28, 1).astype(np.float32)
-    if layout == "flat":
-        # (N, 28, 28) -> (N, 784)
-        return array.reshape(array.shape[0], -1).astype(np.float32)
     raise ValueError(
         f"Unknown layout '{layout}'. Expected one of {_VALID_LAYOUTS}."
     )
@@ -143,7 +140,6 @@ def ensure_data_for_n_clients(
         - "raw":  (N, 28, 28) float32, source uint8 targets
         - "chw":  (N, 1, 28, 28) float32, source uint8 targets (torch)
         - "hwc":  (N, 28, 28, 1) float32, source uint8 targets (TF)
-        - "flat": (N, 784) float32, source uint8 targets (sklearn)
 
     `fraction` slices the leading prefix of each client's train/valid
     arrays — e.g. `fraction=0.1` keeps 10 % of each shard. The cache
