@@ -19,7 +19,7 @@ declearn's main API and bypasses `quickrun` entirely.
 Three layers, each in its own subfolder/file:
 
 1. **Workload builder** (`workload/`): turns a small set of high-level
-   parameters (backend, n_clients, dp, scaffold, secagg, …) into a
+   parameters (backend, n_clients, scaffold, secagg, …) into a
    fully-instantiated `BenchmarkSpec`. This is where parameter
    interpretation happens.
 2. **Runner** (`workload/runner.py`): given a `BenchmarkSpec`, spawns

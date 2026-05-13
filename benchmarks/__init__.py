@@ -76,7 +76,6 @@ def _read_cached(cls_name: str, params: Tuple, key: str) -> int:
 
 __all__ = [
     "BackendsBenchmark",
-    "DPBenchmark",
     "RegularizersBenchmark",
     "ScaffoldBenchmark",
     "SecAggBenchmark",
@@ -168,33 +167,6 @@ class RegularizersBenchmark:
         return _read_cached(
             "RegularizersBenchmark", (n_clients, regularizer), "gpu_bytes"
         )
-    track_peakgpu_run.unit = "bytes"
-
-
-class DPBenchmark:
-    """Sweep client count for DP-SGD on torch."""
-
-    timeout = 900.0
-    params = N_CLIENTS_AXIS
-    param_names = ["n_clients"]
-
-    def setup(self, n_clients: int) -> None:
-        ensure_data_for_n_clients(n_clients, "chw")
-
-    def time_run(self, n_clients: int) -> None:
-        baseline = _mem_capture_start()
-        spec = build_benchmark(backend="torch", dp=True, n_clients=n_clients)
-        run_benchmark(spec)
-        _mem_capture_end("DPBenchmark", (n_clients,), baseline)
-
-    def track_peakmem_run(self, n_clients: int) -> int:
-        return _read_cached(
-            "DPBenchmark", (n_clients,), "host_delta_bytes"
-        )
-    track_peakmem_run.unit = "bytes"
-
-    def track_peakgpu_run(self, n_clients: int) -> int:
-        return _read_cached("DPBenchmark", (n_clients,), "gpu_bytes")
     track_peakgpu_run.unit = "bytes"
 
 

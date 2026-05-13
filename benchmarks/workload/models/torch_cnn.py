@@ -1,4 +1,4 @@
-"""Standard MNIST CNN built with PyTorch, used by most non-DP runs."""
+"""Standard MNIST CNN built with PyTorch, used by all torch runs."""
 
 import torch
 

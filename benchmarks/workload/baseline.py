@@ -38,8 +38,8 @@ BASELINE_EVAL_BATCH_SIZE: int = 128
 BASELINE_N_CLIENTS: int = 3
 BASELINE_REGISTRATION_TIMEOUT: int = 60
 # Fraction of each client's MNIST shard used for benchmarking. The full
-# FL pipeline (registration, aggregation, eval, encryption, DP accounting)
-# is exercised identically; only the inner training loop sees less data.
+# FL pipeline (registration, aggregation, eval, encryption) is exercised
+# identically; only the inner training loop sees less data.
 # This trades MNIST sample count — irrelevant to a "did declearn's plumbing
 # get slower" benchmark — for a 5–10× per-cell speedup. Set to 1.0 to
 # restore the full split; cached layout dirs are keyed on this value.

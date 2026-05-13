@@ -107,10 +107,6 @@ def ensure_source_data(n_clients: int) -> Path:
 
 def _convert(array: np.ndarray, layout: str, is_target: bool) -> np.ndarray:
     if is_target:
-        # CHW (torch) needs int64 because torch.gather inside vmap rejects
-        # uint8; other layouts can keep the source dtype.
-        if layout == "chw":
-            return array.astype(np.int64)
         return array
     if layout == "raw":
         return array
@@ -145,7 +141,7 @@ def ensure_data_for_n_clients(
 
     Layouts:
         - "raw":  (N, 28, 28) float32, source uint8 targets
-        - "chw":  (N, 1, 28, 28) float32, int64 targets (torch / DP-safe)
+        - "chw":  (N, 1, 28, 28) float32, source uint8 targets (torch)
         - "hwc":  (N, 28, 28, 1) float32, source uint8 targets (TF)
         - "flat": (N, 784) float32, source uint8 targets (sklearn)
 

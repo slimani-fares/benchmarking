@@ -22,8 +22,6 @@ Built against declearn 2.8.0 in `~/.venvs/declearn311` on 2026-05-06.
   `timeout` is set to 600s so ASV won't kill it.
 - `RegularizersBenchmark[lasso|ridge|fedprox]` — all three pass
   Layer 2 smoke.
-- `DPBenchmark` — DP-SGD on torch passes Layer 2 smoke (`FlexibleFlatten`
-  + int64 targets are working).
 - `ScaffoldBenchmark` — passes Layer 2 smoke.
 - `SecAggBenchmark[masking]` — passes Layer 2 smoke. Confirms the
   rebuild (no longer hardcoding `secagg=None` like quickrun did) is
@@ -83,7 +81,7 @@ isn't actually usable. Recommended for any cluster / CI run.
 - **`n_clients` axis crosses every category**, not just one dedicated
   scaling benchmark. The brief said scaling should be the only one,
   but Fares chose to add it everywhere so cross-product behavior is
-  visible (e.g. how DP scales with client count). The brief's
+  visible (e.g. how SCAFFOLD scales with client count). The brief's
   separate `ScalingBenchmark` was therefore dropped — its parameter
   slice is now exactly `BackendsBenchmark[backend="torch"]`.
   Per-class trimming of the `n_clients` axis is done by overriding
@@ -91,16 +89,11 @@ isn't actually usable. Recommended for any cluster / CI run.
 
 ### What I'd like Fares to review before committing
 
-1. The DP smoke test passes, but I haven't verified the DP epsilon is
-   tracked correctly across rounds — only that the DP-SGD path runs
-   without error. If the suite is supposed to assert convergence or
-   privacy-budget consumption, that needs a separate check beyond the
-   smoke.
-2. Whether to keep haiku as a stub or remove it from
+1. Whether to keep haiku as a stub or remove it from
    `BackendsBenchmark.params` so ASV doesn't surface a permanent
    failure on every run. I left it as a visible failure on purpose
    — easier to remember to come back to.
-3. The `BASELINE_CLIENT_MODULES = ["adam"]` choice (brief specified
+2. The `BASELINE_CLIENT_MODULES = ["adam"]` choice (brief specified
    it). If the cross-version comparison should match what users
    reach for by default, vanilla SGD might be a better baseline.
 
@@ -110,7 +103,7 @@ isn't actually usable. Recommended for any cluster / CI run.
 
 Supervisor's spec, paraphrased:
 
-- 6 benchmark categories (backends, regularizers, DP, SCAFFOLD,
+- 5 benchmark categories (backends, regularizers, SCAFFOLD,
   SecAgg, scaling), no axis crossings beyond what each category
   declares.
 - 4 client counts (2, 5, 10, 100) sweep on the FedAvg baseline.
@@ -135,23 +128,7 @@ Mirrored from `workload/baseline.py`:
 
 ## Known gotchas
 
-- **DP + torch.func.vmap**:
-  - declearn's DP-SGD uses `torch.func.vmap` to compute per-sample
-    gradients. vmap strips the batch dimension before each forward
-    call, which breaks `nn.Flatten()` and `nn.Unflatten(dim=0, …)`
-    because both assume dim 0 is the batch dim.
-  - Fix in `models/torch_cnn_dp.py`: a `FlexibleFlatten` module that
-    inspects `x.dim()` and falls back to `x.flatten()` under vmap
-    (3D input) while still doing `x.flatten(start_dim=1)` in regular
-    forward (4D input, used at eval time).
-  - Targets must be cast to `int64` for the `chw` layout because
-    `torch.gather` inside vmap rejects `uint8`. `data.py` does this
-    automatically.
-
 - **sklearn limitations**:
-  - `SklearnSGDModel` runs DP-SGD only via the sklearn backend's own
-    sample-wise gradient path, which has not been wired in here.
-    `_validate` rejects `dp=True` with `backend="sklearn"`.
   - SCAFFOLD modules are model-agnostic in declearn but the
     integration with sklearn was not exercised during this build;
     `_validate` rejects `scaffold=True` with `backend="sklearn"` for
@@ -201,7 +178,6 @@ Mirrored from `workload/baseline.py`:
 |------------------------------------|------------------------------|
 | Layer 1 (build only, defaults)     | OK, ~instant                 |
 | Layer 2 (FedAvg torch, 3 clients)  | OK, ~20s                     |
-| Layer 2 with `dp=True`             | OK                           |
 | Layer 2 with `scaffold=True`       | OK                           |
 | Layer 2 with `regularizer=lasso`   | OK                           |
 | Layer 2 with `regularizer=ridge`   | OK                           |

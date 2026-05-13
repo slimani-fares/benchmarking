@@ -15,7 +15,7 @@
 #   3. Installs PyTorch with CUDA 12.1 wheels (forward-compatible
 #      with driver 12.6 / 12.8)
 #   4. Installs declearn from PyPI plus the deps the suite needs
-#      (tensorflow, scikit-learn, opacus, cryptography, asv)
+#      (tensorflow, scikit-learn, cryptography, asv)
 #   5. Verifies torch + (optional) tensorflow can see the GPU
 #
 # Usage:
@@ -127,7 +127,6 @@ pip install --quiet \
     "declearn[torch,tensorflow,haiku,websockets]==$DECLEARN_VERSION" \
     "websockets<14.0" \
     asv \
-    opacus \
     cryptography \
     gmpy2
 

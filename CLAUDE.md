@@ -24,10 +24,10 @@ note `project_benchmarks_usage_model.md`.
 ## Architecture (three layers)
 
 1. `workload/` — turns a small set of high-level toggles
-   (`backend`, `n_clients`, `dp`, `scaffold`, `secagg`, …) into a
+   (`backend`, `n_clients`, `scaffold`, `secagg`, …) into a
    fully-instantiated `BenchmarkSpec`. `build.py` is the only entry
    point. Validation rejects parameter combinations declearn can't
-   honor (e.g. DP on non-torch).
+   honor (e.g. SCAFFOLD on non-torch in the v1 suite).
 2. `workload/runner.py` — given a `BenchmarkSpec`, spins up
    `FederatedServer` + N `FederatedClient`s on `asyncio` and awaits
    completion. ~50 lines.
@@ -86,7 +86,6 @@ asv run --python=same --quick --show-stderr
 | `BackendsBenchmark` | `n_clients × backend` | torch / TF / haiku |
 | `SklearnBenchmark` | `n_clients` (trimmed axis) | split out — sklearn is ~20× slower |
 | `RegularizersBenchmark` | `n_clients × regularizer` | torch FedAvg + lasso/ridge/fedprox |
-| `DPBenchmark` | `n_clients` | torch DP-SGD (vmap-safe model in `torch_cnn_dp.py`) |
 | `ScaffoldBenchmark` | `n_clients` | torch SCAFFOLD |
 | `SecAggBenchmark` | `n_clients × method` | masking only — joye-libert dropped, see NOTES |
 
@@ -99,11 +98,6 @@ class by overriding `params` in that class.
   for a working impl is in `benchmarks/NOTES.md`.
 - **joye-libert SecAgg** dropped from the suite — modular
   exponentiation × CNN parameter count exceeds practical timeouts.
-- **DP**: `models/torch_cnn_dp.py` has a `FlexibleFlatten` because
-  `torch.func.vmap` strips the batch dim and the standard
-  `nn.Flatten` chokes on 3D input.
-- **DP**: `data.py`'s `chw` layout casts targets to `int64` — vmap's
-  `torch.gather` rejects `uint8`.
 - **n_clients=100** was never smoke-tested in the v1 build; if
   re-enabled, raise `ulimit -n` first (websockets fd usage).
 
