@@ -53,31 +53,45 @@ asv check --python=same     # discovery validation, no timing
 
 Cluster (GPU production):
 ```
-./bootstrap_cluster.sh                          # idempotent, see below
-source ~/.venvs/declearn-bench-gpu/bin/activate
+./bootstrap_cluster.sh                          # idempotent
+source /venv/bin/activate                       # declearn's CI image venv
 export DECLEARN_BENCH_FORCE_GPU=1               # fail loudly on CPU fallback
 asv run --python=same --quick --show-stderr
 ```
 
-## bootstrap_cluster.sh quirks
+## Production env: declearn's CI image
 
-- **Pinned to Python 3.11** (`PY_VERSION=3.11`). PyTorch CUDA wheels
-  lag the latest Python; conda's base ships 3.13, which breaks
-  `pip install torch`. Don't change this without verifying torch
-  wheels still exist for the new pin.
-- **Uses conda only to obtain a python3.11 binary**, then seeds a
-  regular venv from it. ASV never touches conda.
-- **conda-forge channel** to dodge Anaconda's default-channel ToS
-  prompt that newer Miniconda installs require.
-- **Torch installed *after* declearn** with `--force-reinstall
-  --no-deps` from `--index-url cu121`. declearn[torch] pulls a PyPI
-  torch as a side effect; we override it. Without this you end up
-  with a CUDA 13 build that the driver can't load.
-- **`websockets<14.0` explicit pin**. websockets 14 renamed
-  `extra_headers` to `additional_headers`; declearn 2.8.0's
-  websockets adapter still uses the old name. declearn pins
-  `<14.0` in pyproject but pip's resolver sometimes lets newer
-  versions through; the explicit pin defends against this.
+Benchmarks run inside the same Docker image declearn's own CI uses:
+`registry.gitlab.inria.fr/magnet/declearn/declearn2/ci-python311:latest`.
+It's built from [`declearn/ci/Dockerfile`](../declearn/ci/Dockerfile):
+`nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04` + Python 3.11 (deadsnakes)
++ a venv at `/venv` with `pip` and `tox`.
+
+CUDA 12.8 and cuDNN live in the OS, not in pip-installed packages, so
+the cu12/cu13 namespace clash the old bootstrap had to repin around
+just doesn't happen here. `pip install declearn[torch,tensorflow,...]`
+"just works."
+
+`Dockerfile` at the repo root extends that image with our suite-specific
+deps (asv, cryptography, gmpy2). Build + run:
+```
+docker build -t declearn-bench .
+docker run --gpus all declearn-bench         # invokes run_benchmarks.sh
+```
+
+`bootstrap_cluster.sh` is the no-Docker path: same install steps, run
+against an existing venv (defaults to `/venv`, override via
+`BENCH_VENV=...`).
+
+Two env vars are exported by both paths to mirror declearn's
+`tox -e py311-ci` config: `TF_FORCE_GPU_ALLOW_GROWTH=true` and
+`XLA_PYTHON_CLIENT_PREALLOCATE=false`. Without these, TF or JAX
+pre-allocate the entire GPU and starve torch in side-by-side cells.
+
+`websockets<14.0` is pinned explicitly because pip's resolver
+occasionally lets 14.x slip past declearn 2.8.0's `<14.0` constraint;
+14.x renamed `extra_headers` → `additional_headers`, breaking
+declearn's adapter.
 
 ## Benchmarks at a glance
 
@@ -86,63 +100,29 @@ asv run --python=same --quick --show-stderr
 | `BackendsBenchmark` | `n_clients × backend` | torch / TF |
 | `RegularizersBenchmark` | `n_clients × regularizer` | torch FedAvg + ridge/fedprox |
 | `ScaffoldBenchmark` | `n_clients` | torch SCAFFOLD |
-| `SecAggBenchmark` | `n_clients × method` | masking only — joye-libert dropped, see NOTES |
+| `SecAggBenchmark` | `n_clients × method` | masking only |
 
-`N_CLIENTS_AXIS = [5, 20]` (in `benchmarks/__init__.py`). Trim per
-class by overriding `params` in that class.
+`N_CLIENTS_AXIS = [5]` (in `benchmarks/__init__.py`). Widen to e.g.
+`[5, 20]` to add a scaling story; trim per class by overriding
+`params` in that class.
 
 ## Known gotchas / deferrals
 
-- **joye-libert SecAgg** dropped from the suite — modular
-  exponentiation × CNN parameter count exceeds practical timeouts.
 - **n_clients=100** was never smoke-tested in the v1 build; if
   re-enabled, raise `ulimit -n` first (websockets fd usage).
 
 ## Setting up Claude Code on a fresh cluster node
 
-The cluster (e.g. Magnet 8) ships with no Node.js, no npm, no conda
-out of the box. The recipe below assumes you've already run
-`benchmarks/bootstrap_cluster.sh` once (which installs Miniconda
-under `~/miniconda3` if it wasn't there). After that, Claude Code
-itself is two commands:
-
-```bash
-# 1. Install Node.js >=20 into the conda base env. The version pin
-#    matters: Claude Code's postinstall script uses optional-chaining
-#    syntax (`?.`) that breaks on Node 12, which is what an unpinned
-#    `conda install nodejs` sometimes gives you on conda-forge.
-conda install -y -c conda-forge --override-channels 'nodejs>=20'
-node --version       # sanity check: should be v20.x or higher
-
-# 2. Install Claude Code globally via the conda env's npm.
-npm install -g @anthropic-ai/claude-code
-
-# 3. Run from the repo.
-cd ~/benchmarking      # or wherever you cloned this repo on the cluster
-claude
-```
-
-If conda isn't yet available on the cluster (no Miniconda installed):
-
-```bash
-# One-shot Miniconda install (no admin required, ~500 MB under $HOME)
-cd ~
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
-bash miniconda.sh -b -p $HOME/miniconda3
-rm miniconda.sh
-$HOME/miniconda3/bin/conda init bash
-exec bash      # restart shell so conda is on PATH
-# Then proceed with the two-command Claude Code install above.
-```
-
-If you'd rather not use conda for Node.js, the no-conda alternative
-is `nvm`:
+The cluster (e.g. Magnet 8) ships with no Node.js. Easiest path is
+`nvm`, no admin required:
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 exec bash
-nvm install 20
+nvm install 20      # Node >=20; Claude Code's postinstall uses ?. syntax
 npm install -g @anthropic-ai/claude-code
+cd ~/declearn-benchmarks
+claude
 ```
 
 On first launch, `claude` will prompt to authenticate. SSH-only

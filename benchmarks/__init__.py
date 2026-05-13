@@ -29,18 +29,15 @@ import resource
 import tempfile
 from typing import List, Tuple
 
-from benchmarks.workload import build_benchmark, run_benchmark
-from benchmarks.workload.data import ensure_data_for_n_clients
+import torch
 
-try:
-    import torch
-    _TORCH_AVAILABLE = True
-except ImportError:
-    _TORCH_AVAILABLE = False
+from benchmarks.workload import build_benchmark, run_benchmark
+from benchmarks.workload.build import BACKEND_LAYOUT
+from benchmarks.workload.data import ensure_data_for_n_clients
 
 
 def _cuda() -> bool:
-    return _TORCH_AVAILABLE and torch.cuda.is_available()
+    return torch.cuda.is_available()
 
 
 def _cache_path(cls_name: str, params: Tuple) -> str:
@@ -82,11 +79,6 @@ __all__ = [
 ]
 
 
-_BACKEND_LAYOUT = {
-    "torch": "chw",
-    "tensorflow": "hwc",
-}
-
 # Single source of truth for the n_clients sweep across every category.
 # Trimmed to a single point to keep the per-version runtime bounded.
 N_CLIENTS_AXIS: List[int] = [5]
@@ -100,7 +92,7 @@ class BackendsBenchmark:
     param_names = ["n_clients", "backend"]
 
     def setup(self, n_clients: int, backend: str) -> None:
-        ensure_data_for_n_clients(n_clients, _BACKEND_LAYOUT[backend])
+        ensure_data_for_n_clients(n_clients, BACKEND_LAYOUT[backend])
 
     def time_run(self, n_clients: int, backend: str) -> None:
         baseline = _mem_capture_start()
@@ -195,14 +187,6 @@ class SecAggBenchmark:
     Pinned to `n_clients=[5]` independently of `N_CLIENTS_AXIS`: the
     n=20 masking cell timed out in earlier sweeps (root cause not yet
     diagnosed). Do not widen until that is resolved.
-
-    Joye-Libert is intentionally left out: its modular-exponentiation
-    cost scales with the model parameter count, and a single 3-client
-    run on the CNN baseline did not finish in 5 min during smoke
-    testing. To re-enable it once a tractable configuration is
-    settled (smaller `bitsize`, a smaller model, or a more efficient
-    declearn implementation), turn `params` back into a 2D tuple
-    `(N_CLIENTS_AXIS, ["masking", "joye-libert"])` and bump `timeout`.
     """
 
     timeout = 1200.0

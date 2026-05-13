@@ -26,14 +26,14 @@ from benchmarks.workload.data import (
 )
 from benchmarks.workload.spec import BenchmarkSpec, ClientSpec
 
-__all__ = ["build_benchmark"]
+__all__ = ["BACKEND_LAYOUT", "build_benchmark"]
 
 
 _VALID_BACKENDS = ("torch", "tensorflow")
 _VALID_REGULARIZERS = (None, "ridge", "fedprox")
-_VALID_SECAGG = (None, "masking", "joye-libert")
+_VALID_SECAGG = (None, "masking")
 
-_BACKEND_LAYOUT = {
+BACKEND_LAYOUT = {
     "torch": "chw",
     "tensorflow": "hwc",
 }
@@ -122,37 +122,22 @@ def _build_secagg(
 ) -> tuple[Optional[SecaggConfigServer], List[Optional[SecaggConfigClient]]]:
     if secagg is None:
         return None, [None] * n_clients
+    # _validate guarantees secagg == "masking" here.
+    from declearn.secagg.masking import (  # noqa: PLC0415
+        MaskingSecaggConfigClient,
+        MaskingSecaggConfigServer,
+    )
+
     private_keys = [Ed25519PrivateKey.generate() for _ in range(n_clients)]
     public_keys = [key.public_key() for key in private_keys]
     id_keys = [
         IdentityKeys(prv, trusted=public_keys) for prv in private_keys
     ]
-    if secagg == "masking":
-        from declearn.secagg.masking import (  # noqa: PLC0415
-            MaskingSecaggConfigClient,
-            MaskingSecaggConfigServer,
-        )
-
-        server_cfg: SecaggConfigServer = MaskingSecaggConfigServer(
-            bitsize=64, clipval=1e8
-        )
-        client_cfgs: List[Optional[SecaggConfigClient]] = [
-            MaskingSecaggConfigClient(id_keys=keys) for keys in id_keys
-        ]
-        return server_cfg, client_cfgs
-    if secagg == "joye-libert":
-        from declearn.secagg.joye_libert import (  # noqa: PLC0415
-            JoyeLibertSecaggConfigClient,
-            JoyeLibertSecaggConfigServer,
-        )
-
-        server_cfg = JoyeLibertSecaggConfigServer(bitsize=64, clipval=1e8)
-        client_cfgs = [
-            JoyeLibertSecaggConfigClient(id_keys=keys) for keys in id_keys
-        ]
-        return server_cfg, client_cfgs
-    # Should be unreachable: _validate would have rejected this earlier.
-    raise ValueError(f"Unsupported secagg type '{secagg}'.")
+    server_cfg = MaskingSecaggConfigServer(bitsize=64, clipval=1e8)
+    client_cfgs = [
+        MaskingSecaggConfigClient(id_keys=keys) for keys in id_keys
+    ]
+    return server_cfg, client_cfgs
 
 
 def _build_clients(
@@ -210,8 +195,7 @@ def build_benchmark(
         Whether to enable SCAFFOLD aux-var exchange. Requires
         `backend="torch"` in the v1 suite.
     secagg:
-        Optional secure-aggregation method. One of `None`, `"masking"`,
-        `"joye-libert"`.
+        Optional secure-aggregation method. One of `None`, `"masking"`.
     rounds:
         Number of federated training rounds.
     batch_size:
@@ -224,7 +208,7 @@ def build_benchmark(
         backend in the v1 suite).
     """
     _validate(backend, regularizer, scaffold, secagg)
-    layout = _BACKEND_LAYOUT[backend]
+    layout = BACKEND_LAYOUT[backend]
     server_model = _build_model(backend)
     optim = _build_optim(regularizer, scaffold)
     run = _build_run_config(rounds, n_clients, batch_size)

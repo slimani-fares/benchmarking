@@ -29,7 +29,7 @@ SEED = 42
 BENCH_ROOT = Path(__file__).resolve().parent.parent
 DATA_ROOT = BENCH_ROOT / "data"
 
-_VALID_LAYOUTS = ("raw", "chw", "hwc")
+_VALID_LAYOUTS = ("chw", "hwc")
 
 
 def _source_dir(n_clients: int) -> Path:
@@ -108,8 +108,6 @@ def ensure_source_data(n_clients: int) -> Path:
 def _convert(array: np.ndarray, layout: str, is_target: bool) -> np.ndarray:
     if is_target:
         return array
-    if layout == "raw":
-        return array
     if layout == "chw":
         # (N, 28, 28) -> (N, 1, 28, 28)
         return array.reshape(array.shape[0], 1, 28, 28).astype(np.float32)
@@ -137,7 +135,6 @@ def ensure_data_for_n_clients(
     """Produce or return the requested layout for `n_clients`.
 
     Layouts:
-        - "raw":  (N, 28, 28) float32, source uint8 targets
         - "chw":  (N, 1, 28, 28) float32, source uint8 targets (torch)
         - "hwc":  (N, 28, 28, 1) float32, source uint8 targets (TF)
 

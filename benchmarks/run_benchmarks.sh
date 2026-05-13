@@ -26,7 +26,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VENV="${BENCH_VENV:-$HOME/.venvs/declearn-bench-gpu}"
+VENV="${BENCH_VENV:-/venv}"
 DECLEARN_REPO="${DECLEARN_REPO:-$(cd "$(dirname "$0")/../../declearn" 2>/dev/null && pwd)}"
 DEFAULT_VERSIONS=("2.7.0" "2.8.0")
 
@@ -53,6 +53,11 @@ fi
 
 # Force-loud GPU: a silent CPU fallback would corrupt the comparison.
 export DECLEARN_BENCH_FORCE_GPU="${DECLEARN_BENCH_FORCE_GPU:-1}"
+
+# Mirror declearn's CI env (see their tox.ini): TF and JAX pre-allocate
+# the entire GPU by default, which starves torch in a side-by-side run.
+export TF_FORCE_GPU_ALLOW_GROWTH=true
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
 
 for VERSION in "${VERSIONS[@]}"; do
     echo "=== Benchmarking declearn ${VERSION} ==="
@@ -97,12 +102,6 @@ for VERSION in "${VERSIONS[@]}"; do
             fi
             REAL_SHA=$(git -C "$DECLEARN_REPO" rev-parse "v${VERSION}^{commit}")
         fi
-        # Re-pin cuDNN to the cu12 build torch was linked against.
-        # `--no-deps` above blocks transitive cu13 cuDNN reinstalls in
-        # principle, but this is a $0.10 safety net; symptom of the
-        # alternative is `CUDNN_STATUS_NOT_INITIALIZED` halfway through
-        # the sweep with no clear cause. See project_cuda_cudnn_pin.md.
-        pip install --quiet --force-reinstall --no-deps "nvidia-cudnn-cu12==9.3.0.75"
         asv run \
             --python=same \
             --set-commit-hash="$REAL_SHA" \

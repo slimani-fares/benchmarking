@@ -1,164 +1,52 @@
 #!/bin/bash
-# Bootstrap a benchmark-ready Python environment on a fresh cluster
-# node (e.g. Magnet 8). Idempotent — safe to re-run.
+# Install the benchmark suite's runtime deps into an existing venv.
 #
-# The benchmark env is always a regular venv at $BENCH_VENV. If no
-# system Python 3.11+ is available, the script uses conda *only* to
-# install a python3.11 interpreter (in a side conda env named
-# $CONDA_BOOTSTRAP_ENV), then uses that interpreter to create the
-# real venv. ASV itself never touches conda.
-#
-# What it does:
-#   1. Locates a Python 3.11+ interpreter, falling back to
-#      "conda create -n declearn-bench-py311 python=3.11" if needed
-#   2. Creates (or reuses) the venv at $BENCH_VENV
-#   3. Installs PyTorch with CUDA 12.1 wheels (forward-compatible
-#      with driver 12.6 / 12.8)
-#   4. Installs declearn from PyPI plus the deps the suite needs
-#      (tensorflow, scikit-learn, cryptography, asv)
-#   5. Verifies torch + (optional) tensorflow can see the GPU
+# Designed to run inside declearn's CI image
+# (registry.gitlab.inria.fr/magnet/declearn/declearn2/ci-python311),
+# which already provides Python 3.11 at /venv and a system-level
+# CUDA 12.8 + cuDNN toolchain. Outside that image, the venv at
+# $BENCH_VENV must already exist and the host must have a working
+# CUDA toolchain on the standard search path.
 #
 # Usage:
 #   ./bootstrap_cluster.sh
-#   BENCH_VENV=/some/path ./bootstrap_cluster.sh
-#   PYTHON_BIN=/path/to/python3.11 ./bootstrap_cluster.sh
-#
-# After it succeeds, run the benchmark suite with:
-#   source "$BENCH_VENV/bin/activate"
-#   export DECLEARN_BENCH_FORCE_GPU=1
-#   cd <repo>/benchmarks
-#   asv run --python=same --quick --show-stderr
+#   BENCH_VENV=/path/to/venv ./bootstrap_cluster.sh
 
 set -euo pipefail
 
-BENCH_VENV="${BENCH_VENV:-$HOME/.venvs/declearn-bench-gpu}"
-CONDA_BOOTSTRAP_ENV="${CONDA_BOOTSTRAP_ENV:-declearn-bench-py311}"
-PY_VERSION="${PY_VERSION:-3.11}"
+BENCH_VENV="${BENCH_VENV:-/venv}"
 DECLEARN_VERSION="${DECLEARN_VERSION:-2.8.0}"
-TORCH_INDEX="${TORCH_INDEX:-https://download.pytorch.org/whl/cu121}"
 
-# 1. Locate (or install via conda) a Python interpreter at exactly
-#    $PY_VERSION (default 3.11). We pin the major.minor version
-#    because PyTorch CUDA wheels lag the latest Python release; even
-#    if the system has python3.13, `pip install torch` will fail
-#    until upstream ships 3.13 wheels. Pinning to 3.11 sidesteps
-#    that and keeps benchmark results comparable across machines.
-need_install=1
-if [ -n "${PYTHON_BIN:-}" ]; then
-    need_install=0
-elif path=$(command -v "python$PY_VERSION" 2>/dev/null); then
-    PYTHON_BIN=$path
-    need_install=0
-fi
-
-if [ "$need_install" = "1" ]; then
-    if ! command -v conda >/dev/null 2>&1; then
-        echo "ERROR: no python$PY_VERSION on PATH and conda is unavailable." >&2
-        echo "       declearn $DECLEARN_VERSION requires Python $PY_VERSION." >&2
-        echo "       Try 'module load python/$PY_VERSION' or 'module load conda'" >&2
-        echo "       and re-run, or set PYTHON_BIN=/path/to/python$PY_VERSION." >&2
-        exit 1
-    fi
-    echo "[1/5] no system python$PY_VERSION found — bootstrapping via conda"
-    echo "      ($(command -v conda))"
-    # shellcheck disable=SC1091
-    source "$(conda info --base)/etc/profile.d/conda.sh"
-    if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_BOOTSTRAP_ENV"; then
-        echo "      creating conda env $CONDA_BOOTSTRAP_ENV (python=$PY_VERSION, channel: conda-forge)"
-        # Use conda-forge to dodge the Anaconda default-channel ToS
-        # gate that newer Miniconda installs prompt for.
-        conda create -y -n "$CONDA_BOOTSTRAP_ENV" \
-            -c conda-forge --override-channels \
-            "python=$PY_VERSION" pip >/dev/null
-    else
-        echo "      reusing existing conda env $CONDA_BOOTSTRAP_ENV"
-    fi
-    PYTHON_BIN=$(conda run -n "$CONDA_BOOTSTRAP_ENV" --no-capture-output \
-                    python -c 'import sys; print(sys.executable)')
-fi
-
-# Verify the chosen interpreter matches PY_VERSION (catches a mismatch
-# from a stale venv pointing at the wrong python).
-actual_ver=$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
-if [ "$actual_ver" != "$PY_VERSION" ]; then
-    echo "ERROR: PYTHON_BIN=$PYTHON_BIN reports $actual_ver, expected $PY_VERSION." >&2
-    echo "       Either set PYTHON_BIN to a python$PY_VERSION binary or" >&2
-    echo "       unset it and let the script find one via conda." >&2
+if [ ! -d "$BENCH_VENV" ]; then
+    echo "ERROR: no venv at $BENCH_VENV." >&2
+    echo "  Expected to run inside declearn's CI image, or with" >&2
+    echo "  BENCH_VENV pointing at a Python 3.11 venv you created." >&2
     exit 1
 fi
-echo "      python → $PYTHON_BIN ($($PYTHON_BIN --version))"
 
-echo "=== bootstrap_cluster.sh ==="
-echo "    venv:     $BENCH_VENV"
-echo "    declearn: $DECLEARN_VERSION"
-echo "    torch:    cu121 wheels (compat with 12.6+ drivers)"
-echo
-
-# 2. Create or reuse the venv (always a regular venv, never a conda env).
-#    If a venv already exists but was seeded with the wrong Python
-#    version, recreate it — pip would later choke on missing torch
-#    wheels for that version.
-recreate_venv=0
-if [ -d "$BENCH_VENV" ]; then
-    venv_ver=$("$BENCH_VENV/bin/python" -c \
-        'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "")
-    if [ "$venv_ver" != "$PY_VERSION" ]; then
-        echo "[2/5] venv at $BENCH_VENV has python $venv_ver — recreating with $PY_VERSION"
-        rm -rf "$BENCH_VENV"
-        recreate_venv=1
-    fi
-fi
-if [ ! -d "$BENCH_VENV" ]; then
-    [ "$recreate_venv" = "0" ] && echo "[2/5] creating venv at $BENCH_VENV"
-    "$PYTHON_BIN" -m venv "$BENCH_VENV"
-else
-    echo "[2/5] venv exists at $BENCH_VENV — reusing"
-fi
 # shellcheck disable=SC1091
 source "$BENCH_VENV/bin/activate"
 pip install --quiet --upgrade pip
 
-# 3. Install declearn + the rest of the benchmark deps.
-#    Note: declearn[torch] pulls torch from default PyPI as a normal
-#    dependency. We let it do that, then reinstall torch in step 4
-#    from the CUDA-matched index so the wheel matches the driver.
-echo "[3/5] installing declearn==$DECLEARN_VERSION + deps"
+# Mirror declearn's `tox -e py311-ci` install path: declearn from PyPI
+# plus its torch/tensorflow/websockets extras. Add the suite-specific
+# deps on top (asv runs the sweep, cryptography supplies the Ed25519
+# keys consumed by SecAgg masking). The explicit websockets pin defends
+# against pip resolver edge cases that have let 14.x slip through
+# declearn's own constraint in the past.
+echo "[1/2] installing declearn==$DECLEARN_VERSION + deps"
 pip install --quiet \
     "declearn[torch,tensorflow,websockets]==$DECLEARN_VERSION" \
     "websockets<14.0" \
     asv \
-    cryptography \
-    gmpy2
+    cryptography
 
-# 4. Reinstall torch from the CUDA-matched index, overriding the
-#    PyPI build pulled in by declearn[torch]. PyPI ships builds
-#    bundling the latest CUDA runtime (currently 13.x), which is
-#    too new for older drivers (e.g. driver 12.8). Pinning to the
-#    cu121 index gives us a runtime that's forward-compatible with
-#    12.x drivers.
-echo "[4/5] reinstalling torch from $TORCH_INDEX (force CUDA-matched build)"
-pip install --quiet --force-reinstall --no-deps \
-    --index-url "$TORCH_INDEX" torch
-
-# 4b. Repin cuDNN to a cu12 build that satisfies BOTH torch and TF.
-#     declearn[tensorflow] in step 3 transitively installs
-#     nvidia-cudnn-cu13 (cuDNN 9.19.x), which writes into the same
-#     `site-packages/nvidia/cudnn/lib/` namespace and overwrites
-#     whatever cu12 cuDNN was there. Without this step the symptom
-#     is `CUDNN_STATUS_NOT_INITIALIZED` on the first torch conv.
-#     Pin choice: 9.3.0.75. torch 2.5.1+cu121 was built against
-#     9.1.0 but cuDNN 9.x is forward-compatible within the major
-#     version, so torch is happy. TensorFlow 2.21.0 was built
-#     against 9.3.0 and refuses to load anything older with:
-#       "Loaded runtime CuDNN library: 9.1.0 but source was compiled
-#        with: 9.3.0. CuDNN library needs to have matching major
-#        version and equal or higher minor version."
-#     9.3.0.75 satisfies both.
-echo "[4b/5] repinning cuDNN to nvidia-cudnn-cu12==9.3.0.75 (torch + TF compatible)"
-pip install --quiet --force-reinstall --no-deps "nvidia-cudnn-cu12==9.3.0.75"
-
-# 5. Verify GPU visibility.
-echo "[5/5] verifying GPU access"
+# GPU smoke. Forces cuDNN to initialise via a tiny conv — basic CUDA
+# can be live while cuDNN is broken, and that breakage will only
+# surface mid-sweep. Better to fail here.
+echo "[2/2] verifying GPU access"
+export TF_FORCE_GPU_ALLOW_GROWTH=true
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
 python - <<'PY'
 import sys
 
@@ -167,16 +55,10 @@ ok = True
 try:
     import torch
     gpu = torch.cuda.is_available()
-    name = torch.cuda.get_device_name(0) if gpu else None
     print(f"  torch.cuda.is_available() = {gpu}")
     print(f"  torch.version.cuda        = {torch.version.cuda}")
     if gpu:
-        print(f"  torch.cuda.get_device_name(0) = {name}")
-        # Exercise cuDNN — basic CUDA may work even when cuDNN is
-        # broken (e.g. cu12/cu13 cuDNN namespace clash). A bare conv
-        # is the cheapest way to force libcudnn.so.9 + its sublibs
-        # to actually initialize. Symptom of breakage:
-        # CUDNN_STATUS_NOT_INITIALIZED on first conv.
+        print(f"  torch.cuda.get_device_name(0) = {torch.cuda.get_device_name(0)}")
         x = torch.randn(2, 1, 8, 8, device="cuda")
         torch.nn.Conv2d(1, 4, 3).cuda()(x)
         print("  cuDNN conv smoke         = OK")
@@ -193,8 +75,7 @@ try:
     print(f"  tf.config.list_physical_devices('GPU') = {gpus}")
     if not gpus:
         print("  NOTE: tensorflow cannot see the GPU (the suite still runs"
-              " on TF/CPU but BackendsBenchmark[tensorflow] timings will"
-              " be slow).")
+              " but BackendsBenchmark[tensorflow] timings will be slow).")
 except Exception as exc:
     print(f"  tensorflow import failed: {exc!r}")
 
