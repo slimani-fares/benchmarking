@@ -94,6 +94,7 @@ def _build_optim(
         "modules": server_modules or None,
     }
     return FLOptimConfig.from_params(
+        #Even for secagg ??
         aggregator=B.BASELINE_AGGREGATOR,
         client_opt=client_opt,
         server_opt=server_opt,
